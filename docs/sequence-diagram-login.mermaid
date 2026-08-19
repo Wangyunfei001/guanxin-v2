@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant User
+    participant LoginPage as app/(auth)/login/page.tsx
+    participant AuthStore as authStore
+    participant AuthAPI as authApi
+    participant Backend as POST /api/auth/login
+    participant Router as Next.js Router
+
+    User->>LoginPage: 输入用户名/密码 + 点击登录
+    LoginPage->>AuthStore: login(username, password)
+    AuthStore->>AuthAPI: client.post('/auth/login', {username, password})
+    AuthAPI->>Backend: POST /api/auth/login
+    Backend-->>AuthAPI: {code:0, data:{access_token, user}}
+    AuthAPI-->>AuthStore: "ApiResponse<LoginResult>"
+
+    alt code === 0 (成功)
+        AuthStore->>AuthStore: token = data.access_token
+        AuthStore->>AuthStore: user = data.user
+        AuthStore->>AuthStore: localStorage.setItem('access_token', token)
+        AuthStore->>AuthStore: localStorage.setItem('user_info', JSON.stringify(user))
+        AuthStore-->>LoginPage: login success
+        LoginPage->>Router: router.push('/chat')
+    else code !== 0 (失败)
+        AuthStore-->>LoginPage: error response
+        LoginPage->>User: toast.error(res.message)
+    end

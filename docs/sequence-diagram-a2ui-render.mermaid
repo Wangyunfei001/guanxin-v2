@@ -1,0 +1,24 @@
+sequenceDiagram
+    participant Backend as Backend SSE
+    participant Hook as useChatStream
+    participant ChatStore as chatStore
+    participant ChatPage as Chat Page
+    participant Renderer as A2UIRenderer
+    participant Card as FormCard/InfoCard/etc
+
+    Backend->>Hook: data: {"type":"a2ui","schema":{"component_type":"list_card","props":{...}}}
+    Hook->>Hook: JSON.parse → SSEEvent
+    Hook->>ChatStore: onEvent({type:'a2ui', schema})
+    ChatStore->>ChatStore: messages[last].a2uiSchemas.push(schema)
+
+    Note over ChatPage: React re-render triggered by Zustand state change
+    ChatPage->>Renderer: "<A2UIRenderer schema={schema} />"
+    Renderer->>Renderer: const Component = componentMap["list_card"] → ListCard
+    Renderer->>Card: "<ListCard schema={schema} />"
+    Card->>Card: 解析 props.title, props.columns, props.rows
+    Card-->>ChatPage: 渲染 shadcn Card + Table
+
+    alt schema.children 存在
+        Renderer->>Renderer: "children.map(child => <A2UIRenderer schema={child} />)"
+        Note over Renderer: 递归渲染子组件
+    end

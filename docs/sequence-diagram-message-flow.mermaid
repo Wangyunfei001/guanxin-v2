@@ -1,0 +1,55 @@
+sequenceDiagram
+    participant User
+    participant ChatPage as app/(main)/chat/page.tsx
+    participant ChatStore as chatStore (Zustand)
+    participant Hook as useChatStream
+    participant AgentAPI as agentApi.chat()
+    participant Backend as POST /api/agent/chat
+    participant A2UI as A2UIRenderer
+
+    User->>ChatPage: 输入消息 + 按 Enter
+    ChatPage->>ChatStore: sendMessage(text)
+
+    ChatStore->>ChatStore: push 用户消息 {role:'user', content:text}
+    ChatStore->>ChatStore: push 助手占位 {role:'assistant', content:'', streaming:true}
+    ChatStore->>ChatStore: loading = true
+
+    ChatStore->>Hook: streamSSE(() => agentApi.chat(convId, text), onEvent)
+    Hook->>AgentAPI: fetch POST /api/agent/chat
+    AgentAPI->>Backend: {conversation_id, message, agent_id, ...}
+    Backend-->>AgentAPI: Response (text/event-stream)
+
+    loop ReadableStream 循环
+        Hook->>Hook: reader.read() → decode → split by \n
+        Hook->>Hook: parse "data: {json}" → SSEEvent
+
+        alt event.type === 'token'
+            Hook->>ChatStore: onEvent({type:'token', content})
+            ChatStore->>ChatStore: messages[last].content += content
+        else event.type === 'reasoning'
+            Hook->>ChatStore: onEvent({type:'reasoning', content})
+            ChatStore->>ChatStore: messages[last].reasoning += content
+        else event.type === 'tool_call'
+            Hook->>ChatStore: onEvent({type:'tool_call', tool_name, tool_input})
+            ChatStore->>ChatStore: messages[last].toolCalls.push({name, input})
+        else event.type === 'tool_result'
+            Hook->>ChatStore: onEvent({type:'tool_result', tool_output})
+            ChatStore->>ChatStore: messages[last].toolCalls[last].output = output
+        else event.type === 'a2ui'
+            Hook->>ChatStore: onEvent({type:'a2ui', schema})
+            ChatStore->>ChatStore: messages[last].a2uiSchemas.push(schema)
+            ChatStore->>A2UI: "<A2UIRenderer schema={schema} />"
+            A2UI->>A2UI: componentMap[component_type] → render Card
+        else event.type === 'error'
+            Hook->>ChatStore: onEvent({type:'error', content})
+            ChatStore->>ChatStore: messages[last].content = "错误: ..."
+        else event.type === 'done'
+            Hook->>ChatStore: onEvent({type:'done'})
+            ChatStore->>ChatStore: messages[last].streaming = false
+        end
+    end
+
+    Hook-->>ChatStore: stream complete
+    ChatStore->>ChatStore: loading = false
+    ChatStore-->>ChatPage: re-render with updated messages
+    ChatPage-->>User: 流式渲染消息 + 推理链 + 工具卡片 + A2UI 卡片

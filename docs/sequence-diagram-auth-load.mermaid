@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant User
+    participant Router as Next.js Router
+    participant RootLayout as app/layout.tsx
+    participant AuthGuard as AuthGuard
+    participant AuthStore as authStore
+    participant MainLayout as app/(main)/layout.tsx
+    participant Page as app/(main)/chat/page.tsx
+    participant ChatStore as chatStore
+
+    User->>Router: 访问 /chat
+    Router->>RootLayout: 渲染根布局
+    RootLayout->>MainLayout: 渲染 (main) 布局
+    MainLayout->>AuthGuard: 检查认证状态
+
+    alt 未登录 (isLoggedIn === false)
+        AuthGuard->>Router: redirect('/login')
+        Router-->>User: 显示登录页
+    else 已登录 (isLoggedIn === true)
+        AuthGuard->>MainLayout: 渲染 SideNav + Header
+        MainLayout->>Page: 渲染 chat/page.tsx
+        Page->>ChatStore: loadConversations()
+        ChatStore->>ChatStore: GET /api/agent/conversations
+        ChatStore-->>Page: conversations[]
+        Page-->>User: 显示对话界面
+    end
