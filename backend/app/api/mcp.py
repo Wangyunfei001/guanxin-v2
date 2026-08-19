@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from app.core.deps import get_current_user
+from app.core.deps import get_admin_user, get_current_user
 from app.core.responses import success
 from app.mcp.client import get_mcp_client
 from app.mcp.server import get_mcp_server_manager
@@ -37,7 +37,7 @@ class RegisterServerRequest(BaseModel):
 @router.post("/servers")
 async def register_server(
     request: RegisterServerRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
 ):
     """注册 MCP Server。"""
     manager = get_mcp_server_manager()
@@ -54,7 +54,7 @@ async def register_server(
 @router.delete("/servers/{server_name}")
 async def unregister_server(
     server_name: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
 ):
     """注销 MCP Server。"""
     manager = get_mcp_server_manager()
@@ -73,7 +73,7 @@ class ConnectRequest(BaseModel):
 @router.post("/connect")
 async def connect_server(
     request: ConnectRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
 ):
     """连接到 MCP Server。"""
     manager = get_mcp_server_manager()

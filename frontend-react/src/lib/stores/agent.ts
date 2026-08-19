@@ -10,9 +10,11 @@ interface AgentState {
   loading: boolean
   config: AgentConfig | null
   configLoading: boolean
+  saving: boolean
 
   loadSkills: () => Promise<void>
   loadConfig: () => Promise<void>
+  saveConfig: (config: AgentConfig) => Promise<void>
 }
 
 export const useAgentStore = create<AgentState>()((set) => ({
@@ -20,6 +22,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
   loading: false,
   config: null,
   configLoading: false,
+  saving: false,
 
   loadSkills: async () => {
     set({ loading: true })
@@ -42,6 +45,16 @@ export const useAgentStore = create<AgentState>()((set) => ({
       }
     } finally {
       set({ configLoading: false })
+    }
+  },
+
+  saveConfig: async (config) => {
+    set({ saving: true })
+    try {
+      const res = await agentApi.updateConfig(config)
+      if (res.code === 0) set({ config: res.data })
+    } finally {
+      set({ saving: false })
     }
   },
 }))

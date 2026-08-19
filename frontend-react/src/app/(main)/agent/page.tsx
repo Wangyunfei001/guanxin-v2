@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Info, Bot, Wrench, Cpu, RefreshCw, Server } from "lucide-react"
+import { Info, Wrench, Cpu, RefreshCw, Server, Save } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,20 +12,45 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { useAgentStore } from "@/lib/stores/agent"
+import { useAuthStore } from "@/lib/stores/auth"
+import { Input } from "@/components/ui/input"
+import type { AgentConfig } from "@/types"
 
 export default function AgentPage() {
-  const { skills, loading, config, configLoading, loadSkills, loadConfig } =
+  const { skills, loading, config, configLoading, saving, loadSkills, loadConfig, saveConfig } =
     useAgentStore()
+  const isAdmin = useAuthStore((state) => state.isAdmin)
+  const [draft, setDraft] = React.useState<AgentConfig | null>(null)
 
   React.useEffect(() => {
     loadSkills()
     loadConfig()
-  }, [])
+  }, [loadConfig, loadSkills])
+
+  React.useEffect(() => {
+    if (config) setDraft(structuredClone(config))
+  }, [config])
 
   const handleRefresh = () => {
     loadConfig()
     loadSkills()
     toast.success("已刷新")
+  }
+
+  const toggleListValue = (
+    key: "enabled_tools" | "enabled_skills" | "mcp_servers",
+    value: string,
+  ) => {
+    setDraft((current) => {
+      if (!current) return current
+      const values = current[key]
+      return {
+        ...current,
+        [key]: values.includes(value)
+          ? values.filter((item) => item !== value)
+          : [...values, value],
+      }
+    })
   }
 
   // All tools = kb_retrieval + skills as tools
@@ -44,8 +69,7 @@ export default function AgentPage() {
         <Info className="h-4 w-4" />
         <AlertTitle>Agent 配置</AlertTitle>
         <AlertDescription>
-          查看 Agent 运行时配置和可用的工具/技能列表。配置来自后端{" "}
-          <code className="bg-muted px-1 rounded text-xs">.env</code>。
+          {isAdmin ? "编辑当前租户的持久化 Agent 配置。" : "当前账号为只读模式；仅管理员可以修改配置。"}
         </AlertDescription>
       </Alert>
 
@@ -55,13 +79,26 @@ export default function AgentPage() {
           <CardTitle className="text-sm flex items-center gap-2">
             <Cpu className="h-4 w-4" /> 模型配置
           </CardTitle>
-          <Button onClick={handleRefresh} size="sm" variant="outline">
-            <RefreshCw className="h-4 w-4" />
-            刷新
-          </Button>
+          <div className="flex gap-2">
+            {isAdmin && draft && (
+              <Button
+                size="sm"
+                disabled={saving}
+                onClick={async () => {
+                  await saveConfig(draft)
+                  toast.success("配置已保存，将在下一轮对话生效")
+                }}
+              >
+                <Save className="h-4 w-4" /> 保存
+              </Button>
+            )}
+            <Button onClick={handleRefresh} size="sm" variant="outline">
+              <RefreshCw className="h-4 w-4" /> 恢复服务器值
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {configLoading || !config ? (
+          {configLoading || !draft ? (
             <div className="py-4 text-center text-sm text-muted-foreground">
               加载中...
             </div>
@@ -72,30 +109,32 @@ export default function AgentPage() {
                   <Label>当前模型</Label>
                   <select
                     className="flex h-9 w-full rounded-md border px-3 py-1 text-sm bg-muted/50 text-muted-foreground cursor-not-allowed"
-                    value={config.model}
-                    disabled
+                    value={draft.model}
+                    disabled={!isAdmin}
+                    onChange={(event) => setDraft({ ...draft, model: event.target.value })}
                   >
-                    {config.available_models.map((m) => (
+                    {draft.available_models.map((m) => (
                       <option key={m} value={m}>
                         {m}
                       </option>
                     ))}
                   </select>
                   <p className="text-xs text-muted-foreground">
-                    由 <code className="bg-muted px-0.5 rounded text-xs">OPENAI_MODEL</code> 指定
+                    必须选择服务器允许的模型
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <Label>Temperature: {config.temperature.toFixed(1)}</Label>
+                  <Label>Temperature: {draft.temperature.toFixed(1)}</Label>
                   <Slider
-                    value={[config.temperature]}
+                    value={[draft.temperature]}
                     min={0}
                     max={2}
                     step={0.1}
-                    disabled
+                    disabled={!isAdmin}
+                    onValueChange={([temperature]) => setDraft({ ...draft, temperature })}
                   />
                   <p className="text-xs text-muted-foreground">
-                    由 <code className="bg-muted px-0.5 rounded text-xs">OPENAI_TEMPERATURE</code> 指定
+                    允许范围 0–2
                   </p>
                 </div>
               </div>
@@ -103,9 +142,10 @@ export default function AgentPage() {
               <div className="space-y-1">
                 <Label>系统提示词</Label>
                 <Textarea
-                  value={config.system_prompt}
+                  value={draft.system_prompt}
                   rows={8}
-                  readOnly
+                  readOnly={!isAdmin}
+                  onChange={(event) => setDraft({ ...draft, system_prompt: event.target.value })}
                   className="bg-muted/30 text-sm font-mono resize-none"
                 />
               </div>
@@ -113,12 +153,48 @@ export default function AgentPage() {
               <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <Badge variant="outline" className="gap-1">
                   <Server className="h-3 w-3" />
-                  {config.api_base}
+                  {draft.api_base}
                 </Badge>
-                <Badge variant="outline">模式: {config.agent_mode}</Badge>
+                <Badge variant="outline">模式: {draft.agent_mode}</Badge>
                 <Badge variant="outline">
-                  工具: {config.tools_count} 个
+                  工具: {draft.tools_count} 个
                 </Badge>
+              </div>
+              <div className="space-y-1">
+                <Label>Max Tokens</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={32768}
+                  value={draft.max_tokens}
+                  disabled={!isAdmin}
+                  onChange={(event) => setDraft({ ...draft, max_tokens: Number(event.target.value) })}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                {([
+                  ["内置工具", "enabled_tools", draft.available_tools.map((name) => ({ name, label: name }))],
+                  ["Skills", "enabled_skills", draft.available_skills.map((item) => ({ name: item.name, label: item.display_name }))],
+                  ["MCP Servers", "mcp_servers", draft.available_mcp_servers.map((name) => ({ name, label: name }))],
+                ] as const).map(([label, key, options]) => (
+                  <div key={key} className="space-y-2 rounded-md border p-3">
+                    <Label>{label}</Label>
+                    {options.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">暂无可选项</p>
+                    ) : options.map((option) => (
+                      <label key={option.name} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={draft[key].includes(option.name)}
+                          disabled={!isAdmin}
+                          onChange={() => toggleListValue(key, option.name)}
+                        />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                ))}
               </div>
             </>
           )}

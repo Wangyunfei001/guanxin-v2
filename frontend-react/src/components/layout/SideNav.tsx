@@ -29,7 +29,7 @@ export function SideNav() {
   const pathname = usePathname()
 
   return (
-    <aside className="flex w-60 flex-col bg-[#001529] text-white">
+    <aside className="hidden w-60 flex-col bg-[#001529] text-white md:flex">
       <div className="flex h-16 items-center justify-center border-b border-white/10">
         <h2 className="text-lg font-semibold">观心 v2</h2>
       </div>

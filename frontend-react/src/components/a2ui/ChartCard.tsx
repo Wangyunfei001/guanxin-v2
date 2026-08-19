@@ -23,16 +23,18 @@ export function ChartCard({ schema }: { schema: A2UISchema }) {
   const props = schema.props || {}
   const title = props.title || "图表"
   const chartType = props.chart_type || "bar"
-  const labels: string[] = props.labels || []
-  const values: number[] = props.values || []
-
   const data = React.useMemo(
-    () =>
+    () => {
+      const labels: string[] = props.labels || []
+      const values: number[] = props.values || []
+      return (
       labels.map((label, idx) => ({
         name: label,
         value: values[idx] ?? 0,
-      })),
-    [labels, values],
+      }))
+      )
+    },
+    [props.labels, props.values],
   )
 
   return (

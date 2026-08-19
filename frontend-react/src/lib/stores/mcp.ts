@@ -19,7 +19,7 @@ interface McpState {
   ) => Promise<ApiResponse<any>>
 }
 
-export const useMcpStore = create<McpState>()((set, get) => ({
+export const useMcpStore = create<McpState>()((set) => ({
   servers: [],
   connections: [],
   loading: false,

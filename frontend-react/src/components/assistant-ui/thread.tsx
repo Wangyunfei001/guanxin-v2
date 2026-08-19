@@ -25,13 +25,13 @@ import {
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useA2UI } from "@/components/assistant-ui/aisdk-runtime-provider";
 import { A2UIRenderer } from "@/components/a2ui/A2UIRenderer";
 import {
   ActionBarMorePrimitive,
   ActionBarPrimitive,
   AuiIf,
   type AssistantState,
+  type DataMessagePartProps,
   BranchPickerPrimitive,
   ComposerPrimitive,
   ErrorPrimitive,
@@ -41,6 +41,7 @@ import {
   ThreadPrimitive,
   type ToolCallMessagePartComponent,
   useAuiState,
+  useAssistantDataUI,
 } from "@assistant-ui/react";
 import {
   ArrowDownIcon,
@@ -94,25 +95,11 @@ const EMPTY_COMPONENTS: ThreadComponents = {};
 const ThreadComponentsContext =
   createContext<ThreadComponents>(EMPTY_COMPONENTS);
 
-// ── A2UI Schemas Section ──────────────────────────────────────
-
-/**
- * Renders accumulated A2UI schemas at the bottom of the thread viewport.
- * Schemas are accumulated during the current assistant response and
- * cleared when a new run starts.
- */
-const A2UISchemasSection: FC = () => {
-  const { a2uiSchemas } = useA2UI();
-
-  if (a2uiSchemas.length === 0) return null;
-
-  return (
-    <div data-slot="aui_a2ui-schemas" className="flex flex-col gap-3 pb-4">
-      {a2uiSchemas.map((schema, idx) => (
-        <A2UIRenderer key={idx} schema={schema} />
-      ))}
-    </div>
-  );
+const A2UIDataRenderer: FC<DataMessagePartProps<any>> = ({ data }) => {
+  const schema = data && typeof data === "object" && "schema" in data
+    ? data.schema
+    : data;
+  return <A2UIRenderer schema={schema} />;
 };
 
 // Startup exposes a loading placeholder thread; treat it as a new chat so
@@ -122,6 +109,7 @@ const isNewChatView = (s: AssistantState) =>
   (!s.thread.isLoading || s.threads.isLoading);
 
 export const Thread: FC<ThreadProps> = ({ components = EMPTY_COMPONENTS }) => {
+  useAssistantDataUI({ name: "a2ui", render: A2UIDataRenderer });
   const isEmpty = useAuiState(isNewChatView);
 
   return (
@@ -168,8 +156,6 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
               {() => <ThreadMessage />}
             </ThreadPrimitive.Messages>
           </div>
-
-          <A2UISchemasSection />
 
           <ThreadPrimitive.ViewportFooter
             className={cn(

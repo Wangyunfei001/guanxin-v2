@@ -125,12 +125,13 @@ class BaseSkill(ABC):
                     ensure_ascii=False,
                 )
 
-            from app.core.tenant import get_tenant_id
+            from app.core.tenant import get_tenant_id, get_user_id, get_user_role
 
             tenant_id = get_tenant_id() or "default"
             context = SkillContext(
                 tenant_id=tenant_id,
-                user_id="system",
+                user_id=get_user_id() or "system",
+                user_role=get_user_role() or "user",
                 conversation_id="",
             )
 

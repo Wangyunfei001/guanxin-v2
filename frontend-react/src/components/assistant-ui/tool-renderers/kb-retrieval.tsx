@@ -14,7 +14,7 @@ interface KbRetrievalRendererProps {
   };
 }
 
-export const KbRetrievalRenderer: FC<KbRetrievalRendererProps> = ({ args, result }) => {
+export const KbRetrievalRenderer: FC<KbRetrievalRendererProps> = ({ result }) => {
   if (!result?.sources?.length) {
     return (
       <div className="text-sm text-muted-foreground p-3">

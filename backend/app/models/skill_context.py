@@ -10,5 +10,6 @@ class SkillContext:
 
     tenant_id: str
     user_id: str
+    user_role: str = "user"
     conversation_id: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)

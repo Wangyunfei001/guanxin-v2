@@ -9,6 +9,7 @@ from typing import Optional
 from app.models.agent import AgentConfig, get_agent_config_store
 from app.mcp.server import get_mcp_server_manager
 from app.services.knowledge_service import get_knowledge_service
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,9 @@ def _init_agent_configs() -> None:
                     tenant_id=tenant_id,
                     name=config_data["name"],
                     description=config_data["description"],
-                    model=config_data["model"],
+                    # Match the configured gateway on first boot. Subsequent
+                    # starts never overwrite an existing tenant config.
+                    model=settings.openai_model,
                     system_prompt=config_data["system_prompt"],
                     temperature=config_data["temperature"],
                     max_tokens=config_data["max_tokens"],
@@ -99,7 +102,7 @@ async def _init_seed_documents() -> None:
     from app.models.document import get_document_store
     from app.seed.data import SEED_DOCUMENTS
 
-    tenant_ids = ["tenant-a"]
+    tenant_ids = ["tenant-a", "tenant-b"]
     service = get_knowledge_service()
     doc_store = get_document_store()
 

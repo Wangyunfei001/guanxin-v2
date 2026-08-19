@@ -9,6 +9,15 @@ from app.models.skill import SkillResult
 from app.models.skill_context import SkillContext
 from app.skills.registry import get_skill_registry
 
+ADMIN_ONLY_SKILLS = {
+    "create_user",
+    "update_user",
+    "delete_user",
+    "query_users",
+    "export_data",
+    "system_diagnosis",
+}
+
 
 class SkillExecutor:
     """技能执行器。"""
@@ -38,6 +47,9 @@ class SkillExecutor:
                 success=False,
                 error=f"技能 '{skill_name}' 未注册",
             )
+
+        if skill_name in ADMIN_ONLY_SKILLS and context.user_role != "admin":
+            return SkillResult(success=False, error="权限不足：该技能仅管理员可执行")
 
         # 校验参数
         error_msg = skill.validate_params(params)

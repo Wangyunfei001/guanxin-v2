@@ -2,7 +2,7 @@
 
 > 版本：v2.0-frontend-migration
 > 日期：2026-07-13
-> 状态：Draft
+> 状态：Completed（当前实现为 Next.js 15 + React 19 + AI SDK）
 > 作者：产品经理 许清楚
 > 关联文档：[prd.md](./prd.md) | [architecture.md](./architecture.md)
 

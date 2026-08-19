@@ -21,54 +21,136 @@ import logging
 import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from app.agent.confirmations import get_confirmation_entities
 from app.agent.executor import execute_agent
-from app.core.tenant import get_tenant_id
+from app.core.deps import get_current_user
+from app.models.tenant import User
+from app.models.skill_context import SkillContext
+from app.services.approval_store import get_approval_store
+from app.services.conversation_store import get_conversation_store
+from app.skills.executor import SkillExecutor
 
 logger = logging.getLogger(__name__)
 
-# Intent → confirm form fields mapping
-_CONFIRM_FORM_FIELDS: dict = {
-    "single_create": {
-        "title": "创建新用户",
-        "fields": [
-            {"name": "username", "label": "用户名", "type": "text", "required": True, "placeholder": "请输入用户名"},
-            {"name": "email", "label": "邮箱", "type": "email", "required": True, "placeholder": "请输入邮箱地址"},
-            {"name": "role", "label": "角色", "type": "select", "required": False, "options": ["admin", "user", "viewer"], "default": "user"},
-        ],
-    },
-    "single_update": {
-        "title": "更新用户信息",
-        "fields": [
-            {"name": "user_id", "label": "用户ID", "type": "text", "required": True, "placeholder": "请输入用户ID"},
-            {"name": "username", "label": "新用户名", "type": "text", "required": False, "placeholder": "留空则不修改"},
-            {"name": "email", "label": "新邮箱", "type": "email", "required": False, "placeholder": "留空则不修改"},
-            {"name": "role", "label": "新角色", "type": "select", "required": False, "options": ["admin", "user", "viewer"]},
-        ],
-    },
-    "single_delete": {
-        "title": "删除用户",
-        "fields": [
-            {"name": "user_id", "label": "用户ID", "type": "text", "required": True, "placeholder": "请输入要删除的用户ID"},
-        ],
-        "danger": True,
-    },
-    "batch_operation": {
-        "title": "导出数据",
-        "fields": [
-            {"name": "data_type", "label": "数据类型", "type": "select", "required": True, "options": ["users", "logs", "reports"]},
-            {"name": "format", "label": "导出格式", "type": "select", "required": False, "options": ["csv", "json", "xlsx"], "default": "csv"},
-            {"name": "date_range", "label": "日期范围", "type": "text", "required": False, "placeholder": "如: 2024-01-01~2024-12-31"},
-        ],
-    },
-}
+def _find_approval_response(messages: list[dict]) -> Optional[dict]:
+    """Find the latest AI SDK tool approval response in UI messages."""
+    for message in reversed(messages):
+        if message.get("role") != "assistant":
+            continue
+        for part in reversed(message.get("parts") or []):
+            if not isinstance(part, dict) or not str(part.get("type", "")).startswith("tool-"):
+                continue
+            approval = part.get("approval")
+            if (
+                isinstance(approval, dict)
+                and approval.get("id")
+                and isinstance(approval.get("approved"), bool)
+            ):
+                return {
+                    "approval_id": approval["id"],
+                    "approved": approval["approved"],
+                    "reason": approval.get("reason", ""),
+                    "tool_call_id": part.get("toolCallId", ""),
+                }
+    return None
 
 
-def _get_confirm_fields(intent_label: str) -> dict:
-    """Get confirm form field definitions for an intent."""
-    return _CONFIRM_FORM_FIELDS.get(intent_label, {})
+def _approval_params(reason: str) -> dict:
+    if not reason:
+        return {}
+    try:
+        value = json.loads(reason)
+        return value if isinstance(value, dict) else {}
+    except (TypeError, json.JSONDecodeError):
+        return {}
+
+
+async def _stream_approval_response(
+    approval_response: dict,
+    conversation_id: str,
+    tenant_id: str,
+    user_id: str,
+    user_role: str,
+) -> AsyncGenerator[str, None]:
+    """Resolve and, when approved, consume an action exactly once."""
+    approval_store = get_approval_store()
+    approval = approval_store.respond(
+        approval_response["approval_id"],
+        conversation_id,
+        approval_response["approved"],
+        approval_response.get("reason", ""),
+    )
+    if approval is None:
+        yield _aisdk_event("error", errorText="Approval not found")
+        yield "data: [DONE]\n\n"
+        return
+
+    tool_call_id = approval["tool_call_id"]
+    conv_store = get_conversation_store()
+    if not approval_response["approved"]:
+        conv_store.update_approval_part(
+            conversation_id,
+            approval["approval_id"],
+            approved=False,
+            reason=approval_response.get("reason", ""),
+        )
+        yield _aisdk_event("tool-output-denied", toolCallId=tool_call_id)
+        yield _aisdk_event("finish-step")
+        yield _aisdk_event("finish")
+        yield "data: [DONE]\n\n"
+        return
+
+    claimed = approval_store.consume(approval["approval_id"], conversation_id)
+    if claimed is None:
+        # A retry after consumption returns the persisted result without executing again.
+        yield _aisdk_event("finish-step")
+        yield _aisdk_event("finish")
+        yield "data: [DONE]\n\n"
+        return
+
+    intent_to_skill = {
+        "single_create": "create_user",
+        "single_update": "update_user",
+        "single_delete": "delete_user",
+        "batch_operation": "export_data",
+    }
+    intent_label = claimed["action"].get("intent_label", "")
+    skill_name = intent_to_skill.get(intent_label)
+    if not skill_name:
+        result = {"success": False, "error": "Unsupported approved action"}
+    elif user_role != "admin":
+        result = {"success": False, "error": "权限不足：该操作仅管理员可执行"}
+    else:
+        params = _approval_params(claimed["action"].get("approval_reason", ""))
+        result = SkillExecutor().execute(
+            skill_name,
+            params,
+            SkillContext(
+                tenant_id=tenant_id,
+                user_id=user_id,
+                user_role=user_role,
+                conversation_id=conversation_id,
+            ),
+        ).to_dict()
+
+    conv_store.update_approval_part(
+        conversation_id,
+        claimed["approval_id"],
+        approved=True,
+        reason=approval_response.get("reason", ""),
+        output=result,
+    )
+    yield _aisdk_event(
+        "tool-output-available",
+        toolCallId=tool_call_id,
+        output=result,
+    )
+    yield _aisdk_event("finish-step")
+    yield _aisdk_event("finish")
+    yield "data: [DONE]\n\n"
 
 
 router = APIRouter(prefix="/agent", tags=["AI-SDK"])
@@ -97,19 +179,32 @@ async def _stream_aisdk_response(
     input_body: dict,
     tenant_id: str,
     user_id: str,
+    user_role: str,
 ) -> AsyncGenerator[str, None]:
     """将 RunAgentInput 转换为 AI SDK Data Stream Protocol 事件流。
 
     Args:
-        input_body: AG-UI RunAgentInput JSON（兼容格式）
+        input_body: AI SDK UIMessage request JSON
         tenant_id: 租户 ID
         user_id: 用户 ID
     """
     messages = input_body.get("messages", [])
 
+    approval_response = _find_approval_response(messages)
+    if approval_response:
+        async for event in _stream_approval_response(
+            approval_response,
+            input_body["id"],
+            tenant_id,
+            user_id,
+            user_role,
+        ):
+            yield event
+        return
+
     # 提取最后一条用户消息
     # AI SDK 格式: { role, parts: [{type:"text", text:"..."}] }
-    # AG-UI 格式: { role, content: "..." }
+    # 兼容旧 content 字段，正式请求使用 parts。
     def _extract_user_text(msg: dict) -> str:
         parts = msg.get("parts") or []
         texts = [p.get("text", "") for p in parts if isinstance(p, dict) and p.get("type") == "text"]
@@ -126,15 +221,6 @@ async def _stream_aisdk_response(
         yield "data: [DONE]\n\n"
         return
 
-    # 如果是确认/取消协议消息，从历史中找到原始请求注入到上下文中
-    if user_message.startswith("✅ 确认操作：") or user_message.startswith("取消操作："):
-        for msg in messages:
-            if msg.get("role") == "user":
-                text = _extract_user_text(msg)
-                if text and not text.startswith("✅") and not text.startswith("取消"):
-                    user_message = f"{user_message}\n\n原始请求：{text}"
-                    break
-
     # 生成唯一 ID
     message_id = f"msg_{uuid.uuid4().hex[:12]}"
     text_id = f"text_{uuid.uuid4().hex[:12]}"
@@ -146,20 +232,7 @@ async def _stream_aisdk_response(
     # 追踪 tool_call → AI-SDK toolCallId 的映射（用于 tool_result 时回填）
     pending_tool_calls: Dict[str, str] = {}  # tool_name → toolCallId
 
-    conversation_id = input_body.get("id", str(uuid.uuid4()))
-
-    # 从 messages 中提取第一条用户消息内容，生成稳定的 conversation_id
-    # 这样同一对话的多次请求共享同一个 conversation_id，后端可以从 DB 加载历史
-    first_user_text = ""
-    for msg in messages:
-        if msg.get("role") == "user":
-            first_user_text = _extract_user_text(msg)
-            break
-    if first_user_text:
-        import hashlib
-        conversation_id = hashlib.md5(
-            f"{tenant_id}:{first_user_text}".encode()
-        ).hexdigest()[:16]
+    conversation_id = input_body["id"]
 
     agent_id = "default"
 
@@ -174,6 +247,7 @@ async def _stream_aisdk_response(
             enabled_tools=None,
             model_name="",
             temperature=0.7,
+            user_role=user_role,
         ):
             # 解析 SSE 消息
             sse_str = sse_msg.strip()
@@ -205,7 +279,7 @@ async def _stream_aisdk_response(
 
             # --- tool_call ---
             elif event_subtype == "tool_call":
-                tool_call_id = f"call_{uuid.uuid4().hex[:12]}"
+                tool_call_id = data.get("tool_call_id") or f"call_{uuid.uuid4().hex[:12]}"
                 tool_name = data.get("tool_name", "unknown")
                 tool_input = data.get("tool_input", "")
 
@@ -237,7 +311,9 @@ async def _stream_aisdk_response(
             elif event_subtype == "tool_result":
                 tool_name = data.get("tool_name", "unknown")
                 tool_output = data.get("tool_output", "")
-                tool_call_id = pending_tool_calls.pop(tool_name, f"call_{uuid.uuid4().hex[:12]}")
+                tool_call_id = data.get("tool_call_id") or pending_tool_calls.pop(
+                    tool_name, f"call_{uuid.uuid4().hex[:12]}"
+                )
 
                 parsed_output = _try_parse_json(tool_output)
                 yield _aisdk_event(
@@ -250,18 +326,24 @@ async def _stream_aisdk_response(
             elif event_subtype == "a2ui":
                 schema = data.get("schema")
                 if schema:
-                    yield _aisdk_event("data-a2ui", data=schema)
+                    yield _aisdk_event(
+                        "data-a2ui",
+                        data={
+                            "schema": schema,
+                            "toolCallId": data.get("tool_call_id", ""),
+                        },
+                    )
 
             # --- confirm_required ---
             elif event_subtype == "confirm_required":
-                confirm_call_id = f"confirm_{uuid.uuid4().hex[:12]}"
-                approval_id = f"approval_{uuid.uuid4().hex[:12]}"
+                confirm_call_id = data.get("tool_call_id") or f"confirm_{uuid.uuid4().hex[:12]}"
+                approval_id = data.get("approval_id") or f"approval_{uuid.uuid4().hex[:12]}"
                 action_desc = data.get("action", "执行操作")
                 entities = data.get("entities", {})
 
                 # If entities is empty, populate form fields based on intent
                 if not entities and tracked_intent:
-                    entities = _get_confirm_fields(tracked_intent)
+                    entities = get_confirmation_entities(tracked_intent)
 
                 if entities.get("title"):
                     action_desc = entities["title"]
@@ -320,19 +402,31 @@ async def _stream_aisdk_response(
 
 
 @router.post("/chat/aisdk")
-async def chat_aisdk(request: Request):
+async def chat_aisdk(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
     """AI SDK 协议聊天端点。
 
-    接收 RunAgentInput JSON（与 AG-UI 兼容），返回 AI SDK Data Stream Protocol 事件流。
+    接收 AI SDK UIMessage 请求，返回 AI SDK Data Stream Protocol 事件流。
     """
     body = await request.json()
+    conversation_id = body.get("id")
+    if not conversation_id:
+        raise HTTPException(status_code=422, detail="缺少 conversation id")
 
-    # 提取用户信息
-    tenant_id = get_tenant_id() or "default"
-    user_id = request.headers.get("X-User-Id", "anonymous")
+    # 会话必须已创建且属于当前租户和用户；跨租户统一按未找到处理。
+    conv_store = get_conversation_store()
+    conversation = conv_store.get_conversation_for_user(
+        conversation_id,
+        user.tenant_id,
+        user.user_id,
+    )
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="对话未找到")
 
     return StreamingResponse(
-        _stream_aisdk_response(body, tenant_id, user_id),
+        _stream_aisdk_response(body, user.tenant_id, user.user_id, user.role),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

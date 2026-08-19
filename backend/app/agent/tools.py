@@ -18,6 +18,15 @@ from app.services.retrieval_service import get_retrieval_service
 
 logger = logging.getLogger(__name__)
 
+ADMIN_ONLY_SKILLS = {
+    "create_user",
+    "update_user",
+    "delete_user",
+    "query_users",
+    "export_data",
+    "system_diagnosis",
+}
+
 
 def get_tools_description(tools: List) -> str:
     """获取工具描述列表（用于系统提示词）。
@@ -165,6 +174,7 @@ def get_tools(
     enabled_names: Optional[List[str]] = None,
     include_skills: bool = True,
     include_mcp: bool = True,
+    user_role: str = "admin",
 ) -> List:
     """获取 Agent 工具列表。
 
@@ -189,6 +199,8 @@ def get_tools(
             registry = get_skill_registry()
             registry.register_all()
             for skill in registry.list_skills():
+                if user_role != "admin" and skill.name in ADMIN_ONLY_SKILLS:
+                    continue
                 try:
                     tools.append(skill.as_langchain_tool())
                 except Exception as e:
@@ -225,7 +237,7 @@ def get_tools(
     return tools
 
 
-def get_enabled_tools(enabled_names: List[str]) -> List:
+def get_enabled_tools(enabled_names: List[str], user_role: str = "admin") -> List:
     """根据名称列表过滤启用工具（兼容旧接口）。
 
     Args:
@@ -234,4 +246,4 @@ def get_enabled_tools(enabled_names: List[str]) -> List:
     Returns:
         过滤后的 Tool 列表
     """
-    return get_tools(enabled_names=enabled_names or None)
+    return get_tools(enabled_names=enabled_names or None, user_role=user_role)

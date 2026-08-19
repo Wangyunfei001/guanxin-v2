@@ -1,10 +1,9 @@
-import { baseURL } from "./client"
 import client from "./client"
-import type { Conversation, ApiResponse, AgentConfig } from "@/types"
+import type { Conversation, ConversationDetail, ApiResponse, AgentConfig } from "@/types"
 
 /**
  * Agent API module.
- * Contains conversation CRUD + SSE streaming chat.
+ * Contains Agent configuration and conversation CRUD.
  */
 export const agentApi = {
   /**
@@ -12,6 +11,21 @@ export const agentApi = {
    */
   getConfig(): Promise<ApiResponse<AgentConfig>> {
     return client.get("/agent/config")
+  },
+
+  updateConfig(
+    config: Pick<
+      AgentConfig,
+      | "model"
+      | "temperature"
+      | "max_tokens"
+      | "system_prompt"
+      | "enabled_tools"
+      | "enabled_skills"
+      | "mcp_servers"
+    >,
+  ): Promise<ApiResponse<AgentConfig>> {
+    return client.put("/agent/config", config)
   },
 
   /**
@@ -34,7 +48,7 @@ export const agentApi = {
   /**
    * Get a single conversation with messages.
    */
-  getConversation(conversationId: string): Promise<ApiResponse<any>> {
+  getConversation(conversationId: string): Promise<ApiResponse<ConversationDetail>> {
     return client.get(`/agent/conversations/${conversationId}`)
   },
 
@@ -47,41 +61,4 @@ export const agentApi = {
     return client.delete(`/agent/conversations/${conversationId}`)
   },
 
-  /**
-   * SSE streaming chat.
-   * Uses native fetch (not axios) to get a ReadableStream response.
-   * Manually reads token from localStorage for Authorization header.
-   *
-   * @returns fetch Response object for streamSSE to consume
-   */
-  async chat(
-    conversationId: string,
-    message: string,
-    options: {
-      agentId?: string
-      systemPrompt?: string
-      enabledTools?: string[]
-    } = {},
-  ): Promise<Response> {
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("access_token") || ""
-        : ""
-
-    const response = await fetch(`${baseURL}/agent/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        conversation_id: conversationId,
-        message,
-        agent_id: options.agentId || "default",
-        system_prompt: options.systemPrompt || "",
-        enabled_tools: options.enabledTools,
-      }),
-    })
-    return response
-  },
 }

@@ -1,252 +1,134 @@
-# 观心 v2 - AI Agent 全栈 Demo 系统
+# 观心 v2
 
-> 基于 LangGraph + FastAPI + Vue 3 的多租户 AI Agent 平台演示项目
+观心 v2 是一个面向稳定演示的多租户 AI Agent 全栈项目。当前主链路使用 FastAPI、LangGraph、SQLite、ChromaDB、Next.js 15、React 19、AI SDK 与 assistant-ui。
 
-## 功能概览
+## 当前能力
 
-- **多租户知识库**：文档上传 → 自动分块 → 向量嵌入 → 语义检索，租户间数据完全隔离
-- **LangGraph ReAct Agent**：推理-行动循环，支持工具调用、流式输出（SSE）
-- **技能系统**：可扩展技能架构，内置数据分析、文本摘要技能，支持 DAG 编排
-- **MCP 协议集成**：标准 MCP 客户端/服务端，内置天气查询示例 Server
-- **A2UI 声明式 UI**：Agent 工具调用结果自动生成结构化卡片，5 种组件类型
-- **JWT + API Key 双认证**：支持 Bearer Token 和 X-API-Key 两种认证方式
+- JWT / API Key 认证与租户隔离
+- 文档上传、解析、切片、向量检索和 SQLite 元数据持久化
+- AI SDK 流式 Assistant、会话侧栏和完整历史恢复
+- 文本、推理、工具输入/输出、A2UI 与 approval 状态持久化
+- 内置文本摘要、数据分析及管理型 Skill
+- stdio MCP 客户端与天气示例 Server
+- 租户级 Agent 配置；admin 可编辑，普通用户只读
+- API、SkillExecutor 与 Agent 工具三层 RBAC
 
 ## 技术栈
 
 | 层 | 技术 |
 |---|---|
-| 后端 | Python 3.11+ / FastAPI / LangGraph / ChromaDB / MCP SDK |
-| 前端 | Vue 3 / Vite / Ant Design Vue / Pinia / TypeScript |
-| 向量数据库 | ChromaDB（嵌入式模式，无需额外服务） |
+| 后端 | Python 3.11+、FastAPI、LangGraph、原生 sqlite3 |
+| 前端 | Next.js 15、React 19、TypeScript、AI SDK、assistant-ui |
+| 数据 | SQLite（业务数据）、ChromaDB（向量）、users.json（账号） |
+| 工具协议 | MCP stdio、A2UI data parts |
 
 ## 快速开始
 
-### 环境要求
-
-- Python 3.11+
-- Node.js 18+
-
-### 一键启动
+环境要求：Python 3.11+、Node.js 18+。
 
 ```bash
-# 1. 克隆项目
-cd guanxin-v2
-
-# 2. 一键启动（自动创建虚拟环境、安装依赖、启动前后端）
 ./scripts/start.sh
-
-# 或分别启动
-./scripts/start.sh backend    # 仅启动后端
-./scripts/start.sh frontend   # 仅启动前端
 ```
 
-### 手动启动
+也可以分别启动：
 
-**后端：**
+```bash
+./scripts/start.sh backend
+./scripts/start.sh frontend
+```
+
+手动启动后端：
+
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
-cp .env.example .env  # 编辑 .env 配置 OPENAI_API_KEY
+cp .env.example .env
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-**前端：**
+手动启动前端：
+
 ```bash
-cd frontend
+cd frontend-react
 npm install
-cp .env.example .env
-npx vite
+npm run dev
 ```
 
-### 访问地址
+访问地址：
 
-| 服务 | 地址 |
-|---|---|
-| 前端页面 | http://localhost:5173 |
-| 后端 API | http://localhost:8000 |
-| API 文档 | http://localhost:8000/docs |
-| 健康检查 | http://localhost:8000/health |
+- 前端：http://localhost:3000
+- 后端：http://localhost:8000
+- OpenAPI：http://localhost:8000/docs
+- 健康检查：http://localhost:8000/health
+
+## 配置
+
+后端配置位于 `backend/.env`。重要配置：
+
+```dotenv
+DATABASE_PATH=./data/guanxin.db
+CHROMA_PERSIST_DIR=./data/chroma
+UPLOAD_DIR=./data/uploads
+OPENAI_API_KEY=
+```
+
+未配置模型 Key 时，Assistant 使用演示响应；自动化测试不会调用真实付费模型。
 
 ## 预设账号
 
 | 用户名 | 密码 | 租户 | 角色 |
 |---|---|---|---|
-| admin | admin123 | 租户A | 管理员 |
-| user | user123 | 租户A | 普通用户 |
-| demo | demo123 | 租户B | 管理员 |
+| admin | admin123 | tenant-a | admin |
+| user | user123 | tenant-a | user |
+| demo | demo123 | tenant-b | admin |
 
-## 演示场景
+业务权限基线：所有登录用户可管理本租户知识库、使用文本摘要/数据分析、读取 Agent 配置并调用已连接 MCP 工具；只有 admin 可修改 Agent 配置、管理 MCP、管理用户、导出数据和执行系统诊断。
 
-### 1. 知识库管理
-- 登录后进入「知识库」页面
-- 上传 txt/md/json 文件
-- 文件自动解析、分块、向量化存储
-- 使用检索测试验证语义搜索效果
-
-### 2. AI 对话
-- 进入「AI 对话」页面
-- 新建对话，输入问题
-- AI 自动检索知识库并流式返回回答
-- 工具调用过程实时展示（工具名、输入、输出）
-- 检索结果自动渲染为 A2UI 列表卡片
-
-### 3. 技能市场
-- 进入「技能市场」页面
-- 查看已注册技能（数据分析、文本摘要）
-- 点击「执行」体验技能调用
-- 数据分析技能会生成 A2UI 图表卡片
-
-### 4. A2UI 预览
-- 进入「A2UI 预览」页面
-- 左侧选择组件类型或预设模板
-- 中间实时预览渲染效果
-- 右侧编辑 JSON Schema 并应用
-
-### 5. MCP 配置
-- 进入「MCP 配置」页面
-- 查看已注册的 MCP Server（内置天气查询）
-- 点击「连接」建立 MCP 连接
-- 连接成功后可调用 Server 上的工具
-
-### 6. Agent 配置
-- 进入「Agent 配置」页面
-- 查看和修改 Agent 参数（模型、温度、提示词等）
-- 配置启用的工具、技能和 MCP Server
-
-## API 文档
-
-启动后端后访问 http://localhost:8000/docs 查看完整的 OpenAPI 文档。
-
-主要 API 端点：
+## 核心 API
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | /api/auth/login | 用户登录 |
-| GET | /api/auth/me | 获取当前用户 |
-| POST | /api/knowledge/documents/upload | 上传文档 |
-| GET | /api/knowledge/documents | 列出文档 |
-| POST | /api/knowledge/retrieve | 检索知识库 |
-| POST | /api/agent/conversations | 创建对话 |
-| POST | /api/agent/chat | 发送消息（SSE 流式） |
-| GET | /api/skills | 列出技能 |
-| POST | /api/skills/execute | 执行技能 |
-| GET | /api/mcp/servers | 列出 MCP Server |
-| POST | /api/mcp/connect | 连接 MCP Server |
-| GET | /api/a2ui/catalog | 获取 A2UI 组件目录 |
-| GET | /api/a2ui/templates | 获取 A2UI 模板列表 |
+| POST | `/api/auth/login` | 登录 |
+| POST | `/api/knowledge/documents/upload` | 上传文档 |
+| POST | `/api/knowledge/retrieve` | 检索知识库 |
+| POST | `/api/agent/conversations` | 创建会话 |
+| GET | `/api/agent/conversations/{id}` | 获取完整历史 parts |
+| POST | `/api/agent/chat/aisdk` | 认证后的 AI SDK UIMessage 流 |
+| GET / PUT | `/api/agent/config` | 读取 / admin 更新 Agent 配置 |
+| POST | `/api/a2ui/preview` | 使用 `{ "schema": ... }` 预览 |
 
-## MCP Server 使用
+AI SDK 是唯一聊天协议；历史 AG-UI 与自定义 SSE 端点已移除。
 
-### 启动内置天气 MCP Server
-
-```bash
-./scripts/start-mcp-server.sh
-```
-
-或在代码中连接：
-
-```python
-from app.mcp.client import get_mcp_client
-
-client = get_mcp_client()
-result = await client.connect(
-    server_name="weather",
-    command="python",
-    args=["-m", "app.mcp.weather_server"],
-)
-```
-
-## 测试
+## 验证
 
 ```bash
 cd backend
 source .venv/bin/activate
-pytest tests/ -v
+pytest -q
+
+cd ../frontend-react
+npm run lint
+npx tsc --noEmit
+npm run build
 ```
 
-测试覆盖：
-- 认证 API（登录成功/失败、令牌验证、API Key 认证）
-- 知识库 API（上传/列表/检索/删除、租户隔离）
+当前测试覆盖 SQLite 幂等与重启持久、外键级联、并发写、租户/用户隔离、RBAC、A2UI 契约、Agent 配置校验及 approval 单次消费。
 
-## 项目结构
+## 数据与初始化
 
-```
-guanxin-v2/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # 应用入口
-│   │   ├── config.py            # 配置管理
-│   │   ├── core/                # 核心模块
-│   │   │   ├── responses.py     # 统一响应
-│   │   │   ├── exceptions.py    # 异常定义
-│   │   │   ├── tenant.py        # 多租户上下文
-│   │   │   ├── security.py      # JWT/密码
-│   │   │   ├── database.py      # ChromaDB
-│   │   │   ├── deps.py          # 依赖注入
-│   │   │   └── middleware.py    # 中间件
-│   │   ├── models/              # 数据模型
-│   │   ├── services/            # 业务服务
-│   │   ├── agent/               # Agent 模块
-│   │   ├── skills/              # 技能系统
-│   │   ├── mcp/                 # MCP 协议
-│   │   ├── a2ui/                # A2UI 声明式 UI
-│   │   ├── api/                 # API 路由
-│   │   └── seed/                # 种子数据
-│   ├── tests/                   # 测试
-│   ├── pyproject.toml
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── main.ts
-│   │   ├── App.vue
-│   │   ├── router/              # 路由
-│   │   ├── stores/              # Pinia 状态
-│   │   ├── api/                 # API 客户端
-│   │   ├── composables/         # 组合式函数
-│   │   ├── components/          # 组件
-│   │   │   ├── a2ui/            # A2UI 组件
-│   │   │   └── chat/            # 聊天组件
-│   │   ├── layouts/             # 布局
-│   │   └── views/               # 页面
-│   ├── package.json
-│   └── vite.config.ts
-├── scripts/                     # 启动脚本
-│   ├── start.sh
-│   ├── start-backend.sh
-│   ├── start-frontend.sh
-│   └── start-mcp-server.sh
-└── README.md
-```
+首次启动会幂等创建两份示例文档、每个预设租户的默认 Agent 配置和天气 MCP 配置。Agent 配置采用 absent-only seed，重启不会覆盖管理员修改。
 
-## 开发指南
+需要重置演示数据时，只清理以下业务目录/文件；`backend/data/users.json` 是账号来源，应保留：
 
-### 添加新技能
+- `backend/data/uploads/`
+- `backend/data/chroma/`
+- `backend/data/guanxin.db` 及其 sidecar
 
-1. 在 `backend/app/skills/builtins/` 下创建新文件
-2. 继承 `BaseSkill`，实现 `_define_metadata()` 和 `execute()` 方法
-3. 技能会自动被 `SkillRegistry` 扫描注册
+## 已知边界
 
-### 添加新 A2UI 组件
-
-1. 在 `backend/app/a2ui/catalog.py` 中添加组件类型定义
-2. 在 `frontend/src/components/a2ui/` 下创建 Vue 组件
-3. 在 `A2UIRenderer.vue` 的 `componentMap` 中注册
-
-### 添加新 MCP Server
-
-1. 参考 `app/mcp/weather_server.py` 创建 MCP Server
-2. 在 `app/mcp/server.py` 中注册默认配置
-3. 或通过 API/MCP 配置页面动态注册
-
-## 已知限制
-
-- 数据存储为内存模式，重启后丢失（ChromaDB 持久化除外）
-- 未配置 OPENAI_API_KEY 时 AI 对话使用模拟响应
-- MCP Server 通过 stdio 通信，不支持远程连接
-- A2UI 表单/确认卡片为展示模式，不支持交互提交
-
-## License
-
-MIT
+- 当前目标是本地稳定演示，不包含生产部署、审计日志、限流或远程 MCP SSE。
+- 用户账号本轮继续保存在 `users.json`。
+- MCP 当前为本地 stdio 连接。
+- 未配置真实模型与 Embedding 服务时，回答与向量检索使用演示回退能力。

@@ -3,24 +3,17 @@
 提供对话管理、消息发送（SSE 流式）等接口。
 """
 
-import json
-import uuid
-from typing import Optional
-
-from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.agent.executor import execute_agent
 from app.config import settings
-from app.agent.prompts import DEFAULT_SYSTEM_PROMPT
-from app.core.deps import get_current_user
+from app.core.deps import get_admin_user, get_current_user
 from app.core.responses import success
-from app.core.tenant import get_tenant_id
-from app.models.agent import ConversationMessage
+from app.models.agent import AgentConfig, get_agent_config_store
 from app.models.tenant import User
 from app.services.conversation_store import get_conversation_store
 from app.skills.registry import get_skill_registry
+from app.skills.executor import ADMIN_ONLY_SKILLS
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
@@ -32,16 +25,40 @@ class CreateConversationRequest(BaseModel):
     title: str = ""
 
 
-class SendMessageRequest(BaseModel):
-    """发送消息请求。"""
+class UpdateAgentConfigRequest(BaseModel):
+    """更新当前租户默认 Agent 配置。"""
 
-    conversation_id: str
-    message: str
-    agent_id: str = "default"
-    system_prompt: str = ""
-    enabled_tools: Optional[list[str]] = None
-    model_name: str = ""
-    temperature: float = 0.7
+    model: str
+    temperature: float
+    max_tokens: int
+    system_prompt: str
+    enabled_tools: list[str]
+    enabled_skills: list[str]
+    mcp_servers: list[str]
+
+
+def _config_response(config: AgentConfig, user_role: str = "admin") -> dict:
+    registry = get_skill_registry()
+    registry.register_all()
+    skills = registry.list_metadata()
+    if user_role != "admin":
+        skills = [skill for skill in skills if skill["name"] not in ADMIN_ONLY_SKILLS]
+
+    from app.mcp.server import get_mcp_server_manager
+
+    servers = get_mcp_server_manager().list_servers()
+    data = config.to_dict()
+    data.update({
+        "agent_mode": settings.agent_mode,
+        "available_models": settings.available_models_list,
+        "api_base": settings.openai_api_base,
+        "tools_count": 1 + len(skills),
+        "skills_count": len(skills),
+        "available_tools": ["kb_retrieval"],
+        "available_skills": skills,
+        "available_mcp_servers": [server["name"] for server in servers],
+    })
+    return data
 
 
 @router.post("/conversations")
@@ -85,7 +102,9 @@ async def get_conversation(
 ):
     """获取对话详情（含消息历史）。"""
     conv_store = get_conversation_store()
-    conv = conv_store.get_conversation(conversation_id, user.tenant_id)
+    conv = conv_store.get_conversation_for_user(
+        conversation_id, user.tenant_id, user.user_id
+    )
     if conv is None:
         return {"code": 4041, "message": "对话未找到", "data": None}
     return success(conv.to_dict())
@@ -98,7 +117,9 @@ async def delete_conversation(
 ):
     """删除对话。"""
     conv_store = get_conversation_store()
-    deleted = conv_store.delete_conversation(conversation_id, user.tenant_id)
+    deleted = conv_store.delete_conversation_for_user(
+        conversation_id, user.tenant_id, user.user_id
+    )
     if not deleted:
         return {"code": 4041, "message": "对话未找到", "data": None}
     return success({"deleted": True})
@@ -106,64 +127,47 @@ async def delete_conversation(
 
 @router.get("/config")
 async def get_agent_config(user: User = Depends(get_current_user)):
-    """获取 Agent 运行时配置（只读）。"""
+    """获取当前租户持久化 Agent 配置。"""
+    store = get_agent_config_store()
+    config = store.get_or_create_default(user.tenant_id)
+    return success(_config_response(config, user.role))
+
+
+@router.put("/config")
+async def update_agent_config(
+    request: UpdateAgentConfigRequest,
+    user: User = Depends(get_admin_user),
+):
+    """更新当前租户默认 Agent 配置（仅管理员）。"""
+    if request.model not in settings.available_models_list:
+        raise HTTPException(status_code=422, detail="模型不在可用列表中")
+    if not 0 <= request.temperature <= 2:
+        raise HTTPException(status_code=422, detail="temperature 必须在 0 到 2 之间")
+    if not 1 <= request.max_tokens <= 32768:
+        raise HTTPException(status_code=422, detail="max_tokens 必须在 1 到 32768 之间")
+
     registry = get_skill_registry()
     registry.register_all()
+    skill_names = {skill.name for skill in registry.list_skills()}
+    if not set(request.enabled_skills).issubset(skill_names):
+        raise HTTPException(status_code=422, detail="包含未知 Skill")
+    if not set(request.enabled_tools).issubset({"kb_retrieval"}):
+        raise HTTPException(status_code=422, detail="包含未知内置工具")
 
-    skills = registry.list_skills()
+    from app.mcp.server import get_mcp_server_manager
 
-    # Count tools: kb_retrieval + each skill as a tool
-    tools_count = 1 + len(skills)  # 1 for kb_retrieval
+    server_names = {item["name"] for item in get_mcp_server_manager().list_servers()}
+    if not set(request.mcp_servers).issubset(server_names):
+        raise HTTPException(status_code=422, detail="包含未知 MCP Server")
 
-    return success({
-        "model": settings.openai_model,
-        "temperature": settings.openai_temperature,
-        "system_prompt": DEFAULT_SYSTEM_PROMPT,
-        "agent_mode": settings.agent_mode,
-        "available_models": settings.available_models_list,
-        "api_base": settings.openai_api_base,
-        "tools_count": tools_count,
-        "skills_count": len(skills),
-    })
-
-
-@router.post("/chat")
-async def chat(
-    request: SendMessageRequest,
-    user: User = Depends(get_current_user),
-):
-    """发送消息并获取流式响应（SSE）。"""
-    tenant_id = get_tenant_id() or user.tenant_id
-
-    # 确保对话存在
-    conv_store = get_conversation_store()
-    conv = conv_store.get_conversation(request.conversation_id, tenant_id)
-    if conv is None:
-        # 自动创建
-        conv = conv_store.create_conversation(
-            tenant_id=tenant_id,
-            user_id=user.user_id,
-            agent_id=request.agent_id,
-            title=request.message[:20],
-        )
-        request.conversation_id = conv.conversation_id
-
-    return StreamingResponse(
-        execute_agent(
-            user_message=request.message,
-            conversation_id=request.conversation_id,
-            tenant_id=tenant_id,
-            user_id=user.user_id,
-            agent_id=request.agent_id,
-            system_prompt=request.system_prompt,
-            enabled_tools=request.enabled_tools,
-            model_name=request.model_name,
-            temperature=request.temperature,
-        ),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    store = get_agent_config_store()
+    config = store.get_or_create_default(user.tenant_id)
+    config.model = request.model
+    config.temperature = request.temperature
+    config.max_tokens = request.max_tokens
+    config.system_prompt = request.system_prompt
+    config.enabled_tools = request.enabled_tools
+    config.enabled_skills = request.enabled_skills
+    config.mcp_servers = request.mcp_servers
+    store.save_config(config)
+    return success(_config_response(config, user.role))

@@ -11,14 +11,19 @@
 import json
 import asyncio
 import logging
+import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.agent.graph import _create_llm, create_legacy_agent, create_state_graph_agent
-from app.agent.prompts import DEFAULT_SYSTEM_PROMPT, build_system_prompt
+from app.agent.prompts import DEFAULT_SYSTEM_PROMPT
 from app.agent.tools import get_enabled_tools
 from app.config import settings
 from app.models.agent import ConversationMessage
 from app.services.conversation_store import get_conversation_store
+from app.models.agent import get_agent_config_store
+from app.core.tenant import set_tenant_context
+from app.agent.confirmations import get_confirmation_entities
+from app.services.approval_store import get_approval_store
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +111,7 @@ async def execute_agent(
     enabled_tools: Optional[List[str]] = None,
     model_name: str = "",
     temperature: float = 0.7,
+    user_role: str = "user",
 ) -> AsyncGenerator[str, None]:
     """执行 Agent 并流式返回结果。
 
@@ -114,18 +120,35 @@ async def execute_agent(
     Yields:
         SSE 格式的流式消息
     """
-    prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+    # 运行参数统一来自当前租户的持久化 Agent 配置；请求级覆盖字段仅保留兼容。
+    config = get_agent_config_store().get_or_create_default(tenant_id)
+    prompt = config.system_prompt or DEFAULT_SYSTEM_PROMPT
+    model_name = config.model
+    temperature = config.temperature
+    max_tokens = config.max_tokens
+    enabled_tools = list(config.enabled_tools)
+    enabled_tools.extend(f"skill__{name}" for name in config.enabled_skills)
+
+    from app.mcp.client import get_mcp_client
+
+    for definition in get_mcp_client().get_tool_definitions():
+        if definition["server_name"] in config.mcp_servers:
+            enabled_tools.append(definition["full_name"])
+
+    set_tenant_context(tenant_id, user_id, user_role)
 
     if settings.agent_mode == "legacy":
         async for msg in _execute_legacy(
             user_message, conversation_id, tenant_id, user_id,
-            agent_id, prompt, enabled_tools, model_name, temperature,
+            agent_id, prompt, enabled_tools, model_name, temperature, user_role,
+            max_tokens,
         ):
             yield msg
     else:
         async for msg in _execute_state_graph(
             user_message, conversation_id, tenant_id, user_id,
-            agent_id, prompt, enabled_tools, model_name, temperature,
+            agent_id, prompt, enabled_tools, model_name, temperature, user_role,
+            max_tokens,
         ):
             yield msg
 
@@ -140,6 +163,8 @@ async def _execute_legacy(
     enabled_tools: Optional[List[str]],
     model_name: str,
     temperature: float,
+    user_role: str,
+    max_tokens: int,
 ) -> AsyncGenerator[str, None]:
     """Legacy 模式：使用 create_react_agent。"""
     messages = await _build_message_history(
@@ -151,24 +176,28 @@ async def _execute_legacy(
         enabled_tools=enabled_tools,
         model_name=model_name,
         temperature=temperature,
+        user_role=user_role,
+        max_tokens=max_tokens,
     )
 
     if agent is None:
         full_response = ""
         async for sse_msg in _mock_stream_response(user_message, system_prompt):
-            yield sse_msg
             if "done" in sse_msg:
                 try:
                     data = json.loads(sse_msg.replace("data: ", "").strip())
                     full_response = data.get("content", "")
                 except Exception:
                     pass
+            else:
+                yield sse_msg
 
         conv_store = get_conversation_store()
         conv_store.add_message(
             conversation_id,
             ConversationMessage(role="assistant", content=full_response),
         )
+        yield _format_sse({"type": "done", "content": full_response})
         return
 
     full_response = ""
@@ -208,6 +237,8 @@ async def _execute_state_graph(
     enabled_tools: Optional[List[str]],
     model_name: str,
     temperature: float,
+    user_role: str,
+    max_tokens: int,
 ) -> AsyncGenerator[str, None]:
     """StateGraph 模式：使用自定义 StateGraph，含意图分类和模式决策。"""
     # StateGraph 模式下不包含 system 消息（节点内部添加）
@@ -216,32 +247,40 @@ async def _execute_state_graph(
     )
 
     # 创建 LLM
-    llm = _create_llm(model_name or settings.openai_model, temperature)
+    llm = _create_llm(model_name or settings.openai_model, temperature, max_tokens)
     if llm is None:
         full_response = ""
         async for sse_msg in _mock_stream_response(user_message, system_prompt):
-            yield sse_msg
             if "done" in sse_msg:
                 try:
                     data = json.loads(sse_msg.replace("data: ", "").strip())
                     full_response = data.get("content", "")
                 except Exception:
                     pass
+            else:
+                yield sse_msg
 
         conv_store = get_conversation_store()
         conv_store.add_message(
             conversation_id,
             ConversationMessage(role="assistant", content=full_response),
         )
+        yield _format_sse({"type": "done", "content": full_response})
         return
 
     # 获取工具
-    tools = get_enabled_tools(enabled_tools or [])
+    tools = get_enabled_tools(enabled_tools or [], user_role=user_role)
 
     # 创建 StateGraph Agent
     agent = create_state_graph_agent(llm, tools, system_prompt)
 
     full_response = ""
+    reasoning = ""
+    tool_parts: List[Dict[str, Any]] = []
+    a2ui_schemas: List[Dict[str, Any]] = []
+    a2ui_parts: List[Dict[str, Any]] = []
+    active_tools: Dict[str, Dict[str, Any]] = {}
+    tracked_intent = ""
     intent_sent = False
     mode_sent = False
     _confirm_stop = False
@@ -265,6 +304,7 @@ async def _execute_state_graph(
                 if isinstance(output, dict):
                     intent_data = output.get("intent", {})
                     if isinstance(intent_data, dict) and intent_data.get("intent_label"):
+                        tracked_intent = intent_data.get("intent_label", "")
                         yield _format_sse(
                             {
                                 "type": "intent",
@@ -289,11 +329,40 @@ async def _execute_state_graph(
 
                     # confirm 模式发送 confirm_required 事件，然后停止流
                     if mode == "confirm":
+                        tool_call_id = f"confirm_{uuid.uuid4().hex[:12]}"
+                        approval_id = f"approval_{uuid.uuid4().hex[:12]}"
+                        entities = get_confirmation_entities(tracked_intent)
+                        action = entities.get("title", "执行操作")
+                        tool_input = {
+                            "action": action,
+                            "entities": entities,
+                            "intent_label": tracked_intent,
+                        }
+                        get_approval_store().create(
+                            approval_id,
+                            tool_call_id,
+                            conversation_id,
+                            {
+                                "intent_label": tracked_intent,
+                                "original_request": user_message,
+                                "tool_input": tool_input,
+                            },
+                        )
+                        tool_parts.append({
+                            "type": "tool-confirm_action",
+                            "toolCallId": tool_call_id,
+                            "state": "approval-requested",
+                            "input": tool_input,
+                            "approval": {"id": approval_id},
+                        })
                         yield _format_sse(
                             {
                                 "type": "confirm_required",
-                                "action": "执行操作",
-                                "entities": {},
+                                "action": action,
+                                "entities": entities,
+                                "tool_call_id": tool_call_id,
+                                "approval_id": approval_id,
+                                "intent_label": tracked_intent,
                             }
                         )
                         _confirm_stop = True
@@ -310,21 +379,34 @@ async def _execute_state_graph(
 
             # 工具调用开始
             elif event_type == "on_tool_start":
+                run_id = str(event.get("run_id") or uuid.uuid4())
+                tool_call_id = f"call_{run_id.replace('-', '')[:16]}"
                 tool_input = event_data.get("input", {})
                 if isinstance(tool_input, dict):
                     tool_input_str = json.dumps(tool_input, ensure_ascii=False)
                 else:
                     tool_input_str = str(tool_input)
+                active_tools[run_id] = {
+                    "tool_call_id": tool_call_id,
+                    "tool_name": event_name,
+                    "input": tool_input,
+                }
                 yield _format_sse(
                     {
                         "type": "tool_call",
                         "tool_name": event_name,
                         "tool_input": tool_input_str,
+                        "tool_call_id": tool_call_id,
                     }
                 )
 
             # 工具调用结束
             elif event_type == "on_tool_end":
+                run_id = str(event.get("run_id") or "")
+                active = active_tools.pop(run_id, {})
+                tool_call_id = active.get(
+                    "tool_call_id", f"call_{uuid.uuid4().hex[:16]}"
+                )
                 output = event_data.get("output", "")
                 output_str = str(output) if output else ""
 
@@ -333,6 +415,7 @@ async def _execute_state_graph(
                         "type": "tool_result",
                         "tool_name": event_name,
                         "tool_output": output_str,
+                        "tool_call_id": tool_call_id,
                     }
                 )
 
@@ -340,7 +423,7 @@ async def _execute_state_graph(
                 try:
                     from app.a2ui.renderer import generate_for_tool_result
 
-                    tool_input = event_data.get("input", {})
+                    tool_input = active.get("input", event_data.get("input", {}))
                     tool_input_dict = {}
                     if isinstance(tool_input, dict):
                         tool_input_dict = tool_input
@@ -356,23 +439,43 @@ async def _execute_state_graph(
                         tool_output=output_str,
                     )
                     if a2ui_schema:
-                        yield _format_sse({"type": "a2ui", "schema": a2ui_schema})
+                        a2ui_schemas.append(a2ui_schema)
+                        a2ui_parts.append({
+                            "type": "data-a2ui",
+                            "data": {
+                                "schema": a2ui_schema,
+                                "toolCallId": tool_call_id,
+                            },
+                        })
+                        yield _format_sse({
+                            "type": "a2ui",
+                            "schema": a2ui_schema,
+                            "tool_call_id": tool_call_id,
+                        })
                 except Exception:
                     pass
+
+                tool_parts.append({
+                    "type": f"tool-{event_name}",
+                    "toolCallId": tool_call_id,
+                    "state": "output-available",
+                    "input": active.get("input", {}),
+                    "output": _parse_tool_output(output_str),
+                })
 
     except Exception as e:
         logger.error("StateGraph execution error: %s", e)
         yield _format_sse({"type": "error", "content": f"Agent 执行出错: {str(e)}"})
         full_response = f"抱歉，处理您的请求时出错: {str(e)}"
 
-    # confirm 模式：流已停止，等待用户确认后重新发起请求
+    # confirm 模式：流已停止，等待 AI SDK approval response。
     if _confirm_stop:
         conv_store = get_conversation_store()
         conv_store.add_message(
             conversation_id,
-            ConversationMessage(role="assistant", content="等待用户确认操作..."),
+            ConversationMessage(role="assistant", content="", tool_calls=tool_parts, parts=tool_parts),
         )
-        yield _format_sse({"type": "done", "content": "等待用户确认操作..."})
+        yield _format_sse({"type": "done", "content": ""})
         return
 
     if not full_response:
@@ -380,12 +483,33 @@ async def _execute_state_graph(
 
     # 保存助手消息
     conv_store = get_conversation_store()
+    persisted_parts: List[Dict[str, Any]] = []
+    if reasoning:
+        persisted_parts.append({"type": "reasoning", "text": reasoning})
+    if full_response:
+        persisted_parts.append({"type": "text", "text": full_response})
+    persisted_parts.extend(tool_parts)
+    persisted_parts.extend(a2ui_parts)
     conv_store.add_message(
         conversation_id,
-        ConversationMessage(role="assistant", content=full_response),
+        ConversationMessage(
+            role="assistant",
+            content=full_response,
+            reasoning=reasoning,
+            tool_calls=tool_parts,
+            a2ui_schemas=a2ui_schemas,
+            parts=persisted_parts,
+        ),
     )
 
     yield _format_sse({"type": "done", "content": full_response})
+
+
+def _parse_tool_output(raw: str) -> Any:
+    try:
+        return json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return {"result": raw}
 
 
 async def _handle_stream_event(event: dict) -> AsyncGenerator[str, None]:

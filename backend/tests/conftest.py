@@ -18,6 +18,10 @@ os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("OPENAI_API_KEY", "")
 os.environ.setdefault("CHROMA_PERSIST_DIR", tempfile.mkdtemp(prefix="chroma_test_"))
 os.environ.setdefault("UPLOAD_DIR", tempfile.mkdtemp(prefix="uploads_test_"))
+os.environ.setdefault(
+    "DATABASE_PATH",
+    str(Path(tempfile.mkdtemp(prefix="sqlite_test_")) / "guanxin-test.db"),
+)
 
 
 @pytest.fixture(scope="session")

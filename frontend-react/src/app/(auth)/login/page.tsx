@@ -28,7 +28,8 @@ export default function LoginPage() {
     setPassword(p)
   }
 
-  const handleLogin = async () => {
+  const handleLogin = async (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
     if (!username || !password) {
       toast.error("请输入用户名和密码")
       return
@@ -49,10 +50,6 @@ export default function LoginPage() {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleLogin()
-  }
-
   return (
     <Card className="w-[400px] shadow-xl">
       <CardHeader>
@@ -61,30 +58,34 @@ export default function LoginPage() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="username">用户名</Label>
-          <Input
-            id="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="请输入用户名"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">密码</Label>
-          <Input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="请输入密码"
-          />
-        </div>
-        <Button onClick={handleLogin} disabled={loading} className="w-full">
-          {loading ? "登录中..." : "登录"}
-        </Button>
+        <form className="space-y-4" onSubmit={handleLogin}>
+          <div className="space-y-2">
+            <Label htmlFor="username">用户名</Label>
+            <Input
+              id="username"
+              name="username"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="请输入用户名"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">密码</Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="请输入密码"
+            />
+          </div>
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? "登录中..." : "登录"}
+          </Button>
+        </form>
 
         <div className="flex items-center gap-2">
           <Separator className="flex-1" />
@@ -96,6 +97,7 @@ export default function LoginPage() {
           {presetAccounts.map((acc) => (
             <Button
               key={acc.username}
+              type="button"
               variant="outline"
               className="w-full justify-start text-xs"
               onClick={() => fillAccount(acc.username, acc.password)}

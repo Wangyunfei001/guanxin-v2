@@ -6,7 +6,7 @@
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.a2ui.catalog import get_catalog, get_component_spec, validate_schema
 from app.a2ui.renderer import render_dynamic, render_for_agent
@@ -45,7 +45,7 @@ async def get_a2ui_templates(user: User = Depends(get_current_user)):
 class PreviewRequest(BaseModel):
     """预览请求。"""
 
-    ui_schema: Dict[str, Any]
+    ui_schema: Dict[str, Any] = Field(alias="schema")
 
 
 @router.post("/preview")

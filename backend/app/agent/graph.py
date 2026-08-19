@@ -81,6 +81,8 @@ def create_legacy_agent(
     enabled_tools: Optional[List[str]] = None,
     model_name: str = "",
     temperature: float = 0.7,
+    user_role: str = "user",
+    max_tokens: int = 4096,
 ):
     """创建旧版 create_react_agent（Legacy 兼容模式）。
 
@@ -93,14 +95,14 @@ def create_legacy_agent(
     Returns:
         LangGraph 编译后的 Agent，LLM 不可用时返回 None
     """
-    tools = get_enabled_tools(enabled_tools or [])
+    tools = get_enabled_tools(enabled_tools or [], user_role=user_role)
 
     prompt = build_system_prompt(
         base_prompt=system_prompt or DEFAULT_SYSTEM_PROMPT,
         enabled_tools=[t.name for t in tools],
     )
 
-    llm = _create_llm(model_name or settings.openai_model, temperature)
+    llm = _create_llm(model_name or settings.openai_model, temperature, max_tokens)
 
     if llm is None:
         return None
@@ -127,6 +129,8 @@ def create_agent(
     enabled_tools: Optional[List[str]] = None,
     model_name: str = "",
     temperature: float = 0.7,
+    user_role: str = "user",
+    max_tokens: int = 4096,
 ):
     """根据 AGENT_MODE 创建 Agent。
 
@@ -146,18 +150,20 @@ def create_agent(
             enabled_tools=enabled_tools,
             model_name=model_name,
             temperature=temperature,
+            user_role=user_role,
+            max_tokens=max_tokens,
         )
 
     # state_graph 模式
-    llm = _create_llm(model_name or settings.openai_model, temperature)
+    llm = _create_llm(model_name or settings.openai_model, temperature, max_tokens)
     if llm is None:
         return None
 
-    tools = get_enabled_tools(enabled_tools or [])
+    tools = get_enabled_tools(enabled_tools or [], user_role=user_role)
     return create_state_graph_agent(llm, tools, system_prompt)
 
 
-def _create_llm(model_name: str, temperature: float):
+def _create_llm(model_name: str, temperature: float, max_tokens: int = 4096):
     """创建 LLM 实例。
 
     Args:
@@ -180,6 +186,7 @@ def _create_llm(model_name: str, temperature: float):
             api_key=api_key,
             base_url=settings.openai_api_base,
             streaming=True,
+            max_tokens=max_tokens,
         )
     except Exception:
         return None

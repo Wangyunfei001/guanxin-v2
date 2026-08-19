@@ -3,6 +3,7 @@
 提供 MCP Server 的启动和管理。
 """
 
+import sys
 from typing import Any, Dict, List, Optional
 
 
@@ -52,7 +53,7 @@ class MCPServerManager:
         if not self._servers:
             self.register_server(
                 name="weather",
-                command="python",
+                command=sys.executable,
                 args=["-m", "app.mcp.weather_server"],
                 description="天气查询 MCP Server（示例）",
             )

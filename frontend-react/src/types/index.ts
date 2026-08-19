@@ -32,42 +32,43 @@ export interface Conversation {
   message_count?: number
 }
 
+export interface ConversationMessage {
+  message_id: string
+  role: "user" | "assistant" | "system"
+  content: string
+  reasoning: string
+  tool_calls: Record<string, unknown>[]
+  a2ui_schemas: A2UISchema[]
+  parts: Record<string, any>[]
+  created_at: string
+}
+
+export interface ConversationDetail extends Conversation {
+  tenant_id: string
+  user_id: string
+  messages: ConversationMessage[]
+}
+
 // ============ Agent Config ============
 export interface AgentConfig {
+  agent_id: string
+  tenant_id: string
+  name: string
   model: string
   temperature: number
+  max_tokens: number
   system_prompt: string
+  enabled_tools: string[]
+  enabled_skills: string[]
+  mcp_servers: string[]
   agent_mode: string
   available_models: string[]
+  available_tools: string[]
+  available_skills: SkillMetadata[]
+  available_mcp_servers: string[]
   api_base: string
   tools_count: number
   skills_count: number
-}
-
-// ============ Chat Message ============
-export interface ToolCall {
-  name: string
-  input: string
-  output?: string
-}
-
-export interface ChatMessage {
-  role: "user" | "assistant" | "system" | "tool"
-  content: string
-  reasoning?: string
-  toolCalls?: ToolCall[]
-  a2uiSchemas?: A2UISchema[]
-  streaming?: boolean
-}
-
-// ============ SSE ============
-export interface SSEEvent {
-  type: "token" | "reasoning" | "tool_call" | "tool_result" | "a2ui" | "done" | "error"
-  content?: string
-  tool_name?: string
-  tool_input?: string
-  tool_output?: string
-  schema?: A2UISchema
 }
 
 // ============ A2UI ============

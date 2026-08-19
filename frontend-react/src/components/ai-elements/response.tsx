@@ -30,7 +30,7 @@ export function Response({ content, className }: ResponseProps) {
         rehypePlugins={[rehypeHighlight]}
         components={{
           pre: ({ children }) => <>{children}</>,
-          code: ({ className, children, node, ...props }) => {
+          code: ({ className, children, node: _node, ...props }) => {
             const match = /language-(\w+)/.exec(className || "")
             const isBlock = match && typeof children === "string"
             if (isBlock) {

@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react"
 import { redirect } from "next/navigation"
 import { useAuthStore } from "@/lib/stores/auth"
-import { SideNav } from "@/components/layout/SideNav"
-import { Header } from "@/components/layout/Header"
 
 /**
  * Client-side authentication guard.
@@ -12,7 +10,6 @@ import { Header } from "@/components/layout/Header"
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn)
-  const token = useAuthStore((s) => s.token)
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {

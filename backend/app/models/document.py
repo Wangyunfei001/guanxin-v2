@@ -3,7 +3,10 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+import json
 from typing import Any, Dict, List, Optional
+
+from app.core.sqlite import connect, initialize_database, transaction
 
 
 class DocumentStatus(str, Enum):
@@ -80,50 +83,151 @@ class DocumentChunk:
 
 
 class DocumentStore:
-    """文档存储管理器：内存存储。"""
+    """SQLite 文档存储管理器。"""
 
     def __init__(self) -> None:
-        self._documents: Dict[str, Document] = {}  # key: doc_id
-        self._chunks: Dict[str, List[DocumentChunk]] = {}  # key: doc_id
+        initialize_database()
+
+    @staticmethod
+    def _document_from_row(row: Any) -> Document:
+        return Document(
+            doc_id=row["doc_id"],
+            tenant_id=row["tenant_id"],
+            filename=row["filename"],
+            file_path=row["file_path"],
+            file_size=row["file_size"],
+            file_type=row["file_type"],
+            title=row["title"],
+            status=DocumentStatus(row["status"]),
+            chunk_count=row["chunk_count"],
+            error_message=row["error_message"],
+            metadata=json.loads(row["metadata_json"] or "{}"),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    @staticmethod
+    def _chunk_from_row(row: Any) -> DocumentChunk:
+        return DocumentChunk(
+            chunk_id=row["chunk_id"],
+            doc_id=row["doc_id"],
+            tenant_id=row["tenant_id"],
+            content=row["content"],
+            chunk_index=row["chunk_index"],
+            metadata=json.loads(row["metadata_json"] or "{}"),
+        )
 
     def add_document(self, doc: Document) -> None:
         """添加文档。"""
-        self._documents[doc.doc_id] = doc
+        with transaction() as conn:
+            conn.execute(
+                """
+                INSERT INTO documents(
+                    doc_id, tenant_id, filename, file_path, file_size, file_type,
+                    title, status, chunk_count, error_message, metadata_json,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    doc.doc_id, doc.tenant_id, doc.filename, doc.file_path,
+                    doc.file_size, doc.file_type, doc.title, doc.status.value,
+                    doc.chunk_count, doc.error_message,
+                    json.dumps(doc.metadata, ensure_ascii=False),
+                    doc.created_at, doc.updated_at,
+                ),
+            )
 
     def get_document(self, doc_id: str) -> Optional[Document]:
         """获取文档。"""
-        return self._documents.get(doc_id)
+        conn = connect()
+        try:
+            row = conn.execute(
+                "SELECT * FROM documents WHERE doc_id = ?", (doc_id,)
+            ).fetchone()
+            return self._document_from_row(row) if row else None
+        finally:
+            conn.close()
 
     def update_document(self, doc_id: str, **kwargs: Any) -> Optional[Document]:
         """更新文档字段。"""
-        doc = self._documents.get(doc_id)
+        doc = self.get_document(doc_id)
         if doc is None:
             return None
         for k, v in kwargs.items():
             if hasattr(doc, k):
                 setattr(doc, k, v)
         doc.updated_at = datetime.now(timezone.utc).isoformat()
+        with transaction() as conn:
+            conn.execute(
+                """
+                UPDATE documents SET title=?, status=?, chunk_count=?,
+                    error_message=?, metadata_json=?, updated_at=?
+                WHERE doc_id=?
+                """,
+                (
+                    doc.title,
+                    doc.status.value if isinstance(doc.status, DocumentStatus) else doc.status,
+                    doc.chunk_count,
+                    doc.error_message,
+                    json.dumps(doc.metadata, ensure_ascii=False),
+                    doc.updated_at,
+                    doc_id,
+                ),
+            )
         return doc
 
     def delete_document(self, doc_id: str) -> bool:
         """删除文档。"""
-        if doc_id in self._documents:
-            del self._documents[doc_id]
-            self._chunks.pop(doc_id, None)
-            return True
-        return False
+        with transaction() as conn:
+            cursor = conn.execute("DELETE FROM documents WHERE doc_id = ?", (doc_id,))
+            return cursor.rowcount > 0
 
     def list_documents(self, tenant_id: str) -> List[Document]:
         """列出租户的所有文档。"""
-        return [d for d in self._documents.values() if d.tenant_id == tenant_id]
+        conn = connect()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM documents WHERE tenant_id = ? ORDER BY created_at DESC",
+                (tenant_id,),
+            ).fetchall()
+            return [self._document_from_row(row) for row in rows]
+        finally:
+            conn.close()
 
     def add_chunks(self, doc_id: str, chunks: List[DocumentChunk]) -> None:
         """添加文档分块。"""
-        self._chunks[doc_id] = chunks
+        with transaction() as conn:
+            conn.execute("DELETE FROM document_chunks WHERE doc_id = ?", (doc_id,))
+            conn.executemany(
+                """
+                INSERT INTO document_chunks(
+                    chunk_id, doc_id, tenant_id, content, chunk_index, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        chunk.chunk_id,
+                        chunk.doc_id,
+                        chunk.tenant_id,
+                        chunk.content,
+                        chunk.chunk_index,
+                        json.dumps(chunk.metadata, ensure_ascii=False),
+                    )
+                    for chunk in chunks
+                ],
+            )
 
     def get_chunks(self, doc_id: str) -> List[DocumentChunk]:
         """获取文档分块。"""
-        return self._chunks.get(doc_id, [])
+        conn = connect()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM document_chunks WHERE doc_id = ? ORDER BY chunk_index",
+                (doc_id,),
+            ).fetchall()
+            return [self._chunk_from_row(row) for row in rows]
+        finally:
+            conn.close()
 
 
 # 全局文档存储单例

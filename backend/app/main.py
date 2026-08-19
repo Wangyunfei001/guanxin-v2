@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.config import settings
 from app.core.database import get_chroma_client
+from app.core.sqlite import initialize_database
 from app.core.deps import init_preset_users
 from app.core.middleware import RequestContextMiddleware
 from app.core.responses import success
@@ -36,10 +37,14 @@ async def lifespan(app: FastAPI):
     init_preset_users()
 
     # 2. 初始化 ChromaDB
+    logger.info("Initializing SQLite business database...")
+    initialize_database()
+
+    # 3. 初始化 ChromaDB
     logger.info("Initializing ChromaDB...")
     get_chroma_client()
 
-    # 2.5 Embedding API 连通性检查（不阻止启动，仅告警）
+    # Embedding API 连通性检查（不阻止启动，仅告警）
     logger.info("Checking embedding API connectivity...")
     try:
         from app.services.embedding_service import get_embedding_service
@@ -55,13 +60,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Embedding API 连通性检查异常，将继续启动: %s", e)
 
-    # 3. 注册技能
+    # 4. 注册技能
     logger.info("Registering skills...")
     skill_registry = get_skill_registry()
     skill_registry.register_all()
     logger.info(f"Registered {len(skill_registry.list_skills())} skills")
 
-    # 4. 初始化种子数据
+    # 5. 初始化种子数据
     logger.info("Initializing seed data...")
     try:
         from app.seed.init_data import init_seed_data

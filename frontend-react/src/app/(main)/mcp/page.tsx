@@ -26,9 +26,11 @@ import {
 } from "@/components/ui/dialog"
 import { useMcpStore } from "@/lib/stores/mcp"
 import { mcpApi } from "@/lib/api/mcp"
+import { useAuthStore } from "@/lib/stores/auth"
 
 export default function McpPage() {
   const mcpStore = useMcpStore()
+  const isAdmin = useAuthStore((state) => state.isAdmin)
   const [connecting, setConnecting] = React.useState("")
   const [addModalVisible, setAddModalVisible] = React.useState(false)
   const [callToolVisible, setCallToolVisible] = React.useState(false)
@@ -90,7 +92,7 @@ export default function McpPage() {
     setConnecting(name)
     try {
       const res = await mcpStore.connectServer(name)
-      if (res.code === 0) {
+      if (res.code === 0 && res.data.status === "connected") {
         toast.success(`连接成功，发现 ${res.data.tools?.length || 0} 个工具`)
         mcpStore.loadConnections()
       } else {
@@ -151,10 +153,12 @@ export default function McpPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm">MCP Server 配置</CardTitle>
-              <Button size="sm" onClick={showAddModal}>
-                <Plus className="h-4 w-4" />
-                添加
-              </Button>
+              {isAdmin && (
+                <Button size="sm" onClick={showAddModal}>
+                  <Plus className="h-4 w-4" />
+                  添加
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -173,7 +177,7 @@ export default function McpPage() {
                     <div className="text-sm font-medium">{server.name}</div>
                     <div className="text-xs text-muted-foreground">{server.description}</div>
                   </div>
-                  <div className="flex gap-1">
+                  {isAdmin && <div className="flex gap-1">
                     <Button
                       variant="link"
                       size="sm"
@@ -193,7 +197,7 @@ export default function McpPage() {
                       <Trash2 className="h-3 w-3" />
                       删除
                     </Button>
-                  </div>
+                  </div>}
                 </div>
               ))}
               {mcpStore.servers.length === 0 && !mcpStore.loading && (

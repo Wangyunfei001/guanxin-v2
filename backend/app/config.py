@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     # === 数据库 ===
     chroma_persist_dir: str = "./data/chroma"
+    database_path: str = "./data/guanxin.db"
 
     # === LLM 配置 ===
     openai_api_key: str = ""
@@ -50,7 +51,7 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 20
 
     # === CORS ===
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:3000"
 
     # === Agent 配置 ===
     agent_mode: str = "state_graph"  # "state_graph" | "legacy"
@@ -65,7 +66,7 @@ class Settings(BaseSettings):
     def validate_cors_origins(cls, v: str) -> str:
         """确保 CORS 字符串非空。"""
         if not v.strip():
-            return "http://localhost:5173"
+            return "http://localhost:3000"
         return v
 
     @property
@@ -90,6 +91,13 @@ class Settings(BaseSettings):
         """ChromaDB 持久化目录 Path 对象。"""
         p = Path(self.chroma_persist_dir)
         p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def business_database_path(self) -> Path:
+        """SQLite 业务数据库路径。"""
+        p = Path(self.database_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
         return p
 
 

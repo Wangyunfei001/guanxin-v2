@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
-import { useChatSend } from "@/components/assistant-ui/aisdk-runtime-provider";
 
 interface ConfirmField {
   name: string;
@@ -47,8 +46,6 @@ export const ConfirmActionRenderer: FC<ConfirmActionRendererProps> = ({
   respondToApproval,
   result,
 }) => {
-  const { sendMessage } = useChatSend();
-
   // Initialize form values from field defaults
   const [formValues, setFormValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -123,15 +120,10 @@ export const ConfirmActionRenderer: FC<ConfirmActionRendererProps> = ({
             variant={danger ? "destructive" : "default"}
             disabled={hasForm && fields!.some((f) => f.required && !formValues[f.name])}
             onClick={() => {
-              respondToApproval?.({ approved: true });
-              if (hasForm) {
-                const fieldStr = fields!
-                  .map((f) => `${f.label}: ${formValues[f.name]}`)
-                  .join("，");
-                sendMessage(`✅ 确认操作：\n\n${fieldStr}`);
-              } else {
-                sendMessage("✅ 确认操作：");
-              }
+              respondToApproval?.({
+                approved: true,
+                reason: hasForm ? JSON.stringify(formValues) : undefined,
+              });
             }}
           >
             确认提交
@@ -141,7 +133,6 @@ export const ConfirmActionRenderer: FC<ConfirmActionRendererProps> = ({
             variant="outline"
             onClick={() => {
               respondToApproval?.({ approved: false, reason: "用户取消" });
-              sendMessage("取消操作：");
             }}
           >
             取消

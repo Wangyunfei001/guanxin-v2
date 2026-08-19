@@ -78,13 +78,10 @@ class KnowledgeService:
         file_type = detect_file_type(filename)
         doc_id = str(uuid.uuid4())
 
-        # 保存文件到磁盘
+        # 先建立业务记录，再保存文件与派生数据，任何异常都可追踪为 FAILED。
         from app.config import settings
 
         file_path = settings.upload_path / f"{doc_id}_{filename}"
-        file_path.write_bytes(content)
-
-        # 创建文档记录
         doc = Document(
             doc_id=doc_id,
             tenant_id=tenant_id,
@@ -93,30 +90,24 @@ class KnowledgeService:
             file_size=len(content),
             file_type=file_type,
             title=title or filename,
-            status=DocumentStatus.PARSING,
+            status=DocumentStatus.PENDING,
         )
         self.store.add_document(doc)
 
-        # 解析文档
-        text = parse_file(str(file_path), file_type)
-        if not text:
-            self.store.update_document(
-                doc_id,
-                status=DocumentStatus.FAILED,
-                error_message="文档解析失败：无法提取文本内容",
-            )
-            return doc
+        try:
+            file_path.write_bytes(content)
+            self.store.update_document(doc_id, status=DocumentStatus.PARSING)
+            text = parse_file(str(file_path), file_type)
+            if not text:
+                raise ValueError("文档解析失败：无法提取文本内容")
 
-        # 分块
-        self.store.update_document(doc_id, status=DocumentStatus.CHUNKING)
-        chunks = chunk_text(text, doc_id, tenant_id)
-        self.store.add_chunks(doc_id, chunks)
+            self.store.update_document(doc_id, status=DocumentStatus.CHUNKING)
+            chunks = chunk_text(text, doc_id, tenant_id)
+            self.store.add_chunks(doc_id, chunks)
 
-        # 生成 embedding 并存储到 ChromaDB
-        self.store.update_document(doc_id, status=DocumentStatus.EMBEDDING)
-        if chunks:
-            texts = [c.content for c in chunks]
-            try:
+            self.store.update_document(doc_id, status=DocumentStatus.EMBEDDING)
+            if chunks:
+                texts = [c.content for c in chunks]
                 # P0-3: 显式获取是否回退到本地伪随机向量，用于元数据标注
                 embeddings, is_fallback = (
                     self.embedding_service.embed_texts_with_fallback(texts)
@@ -146,23 +137,30 @@ class KnowledgeService:
                     status=DocumentStatus.READY,
                     chunk_count=len(chunks),
                 )
-            except Exception as e:
-                # P0-2: 异常路径必须更新状态，避免卡死在 EMBEDDING
-                logger.error("文档 %s Embedding/向量存储失败: %s", doc_id, e)
+            else:
                 self.store.update_document(
                     doc_id,
-                    status=DocumentStatus.FAILED,
-                    error_message=f"Embedding 或向量存储失败: {e}",
+                    status=DocumentStatus.READY,
+                    chunk_count=0,
                 )
-        else:
-            # 无分块也视为处理完成
+        except Exception as e:
+            logger.error("文档 %s 处理失败: %s", doc_id, e)
+            # collection.add 可能在异常前写入了部分向量，按 chunk ID 补偿。
+            try:
+                persisted_chunks = self.store.get_chunks(doc_id)
+                if persisted_chunks:
+                    get_or_create_collection(tenant_id).delete(
+                        ids=[chunk.chunk_id for chunk in persisted_chunks]
+                    )
+            except Exception as cleanup_error:
+                logger.warning("文档 %s 向量补偿失败: %s", doc_id, cleanup_error)
             self.store.update_document(
                 doc_id,
-                status=DocumentStatus.READY,
-                chunk_count=0,
+                status=DocumentStatus.FAILED,
+                error_message=str(e),
             )
 
-        return doc
+        return self.store.get_document(doc_id) or doc
 
     def list_documents(self, tenant_id: str) -> List[Document]:
         """列出租户的所有文档。"""
@@ -184,19 +182,25 @@ class KnowledgeService:
         # 从 ChromaDB 删除向量
         chunks = self.store.get_chunks(doc_id)
         if chunks:
-            collection = get_or_create_collection(tenant_id)
             try:
+                collection = get_or_create_collection(tenant_id)
                 collection.delete(ids=[c.chunk_id for c in chunks])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error("文档 %s 向量删除失败，中止删除: %s", doc_id, e)
+                return False
 
         # 删除文件
         from pathlib import Path
 
         try:
-            Path(doc.file_path).unlink(missing_ok=True)
-        except Exception:
-            pass
+            path = Path(doc.file_path)
+            if path.exists():
+                path.unlink()
+            else:
+                logger.warning("文档 %s 文件不存在，继续删除元数据", doc_id)
+        except Exception as e:
+            logger.error("文档 %s 文件删除失败: %s", doc_id, e)
+            return False
 
         # 删除文档记录
         self.store.delete_document(doc_id)

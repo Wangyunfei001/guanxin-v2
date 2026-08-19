@@ -3,6 +3,7 @@
 包含示例文档、默认 Agent 配置、默认 MCP Server 配置等种子数据。
 """
 
+import sys
 from typing import Any, Dict, List
 
 # === 示例文档 ===
@@ -18,7 +19,7 @@ SEED_DOCUMENTS: List[Dict[str, str]] = [
 4. MCP 协议集成：标准 MCP 客户端和服务端实现，可以连接外部 MCP Server 扩展能力。
 5. A2UI 声明式 UI：Agent 工具调用结果自动生成结构化 UI 卡片，支持表单、信息、列表、确认、图表五种组件类型。
 
-技术栈：后端使用 Python + FastAPI + LangGraph + ChromaDB，前端使用 Vue 3 + Ant Design Vue + TypeScript。
+技术栈：后端使用 Python + FastAPI + LangGraph + SQLite + ChromaDB，前端使用 Next.js 15 + React 19 + AI SDK + TypeScript。
 
 预设用户：admin/admin123（租户A管理员），user/user123（租户A普通用户），demo/demo123（租户B管理员）。
 """,
@@ -32,7 +33,7 @@ SEED_DOCUMENTS: List[Dict[str, str]] = [
 运行 scripts/start.sh 脚本，它会自动检查 Python 和 Node.js 环境，创建虚拟环境，安装依赖，启动后端和前端服务。
 
 第二步：登录系统
-打开浏览器访问 http://localhost:5173，使用预设账号登录。推荐使用 admin/admin123 登录。
+打开浏览器访问 http://localhost:3000，使用预设账号登录。推荐使用 admin/admin123 登录。
 
 第三步：上传文档
 进入知识库页面，上传 txt、md 或 json 文件。系统会自动解析、分块、生成向量嵌入并存储到 ChromaDB。
@@ -62,7 +63,7 @@ SEED_AGENT_CONFIGS: List[Dict[str, Any]] = [
         "system_prompt": "你是观心 v2 的 AI 助手，可以帮助用户管理知识库、分析数据、回答问题。请友善、专业地回答用户的问题。",
         "temperature": 0.7,
         "max_tokens": 4096,
-        "enabled_tools": ["kb_retrieval", "skill_execute"],
+        "enabled_tools": ["kb_retrieval"],
         "enabled_skills": ["data_analysis", "text_summary"],
         "mcp_servers": ["weather"],
     },
@@ -72,7 +73,7 @@ SEED_AGENT_CONFIGS: List[Dict[str, Any]] = [
 SEED_MCP_SERVERS: List[Dict[str, Any]] = [
     {
         "name": "weather",
-        "command": "python",
+        "command": sys.executable,
         "args": ["-m", "app.mcp.weather_server"],
         "env": {},
         "description": "天气查询 MCP Server（示例）",

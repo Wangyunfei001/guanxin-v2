@@ -139,11 +139,8 @@ class TestAgentConversation:
     def test_chat_unauthorized(self, test_client):
         """测试未认证不能聊天。"""
         response = test_client.post(
-            "/api/agent/chat",
-            json={
-                "conversation_id": "any-conv-id",
-                "message": "你好",
-            },
+            "/api/agent/chat/aisdk",
+            json={"id": "any-conv-id", "messages": []},
         )
         assert response.status_code == 401
 
