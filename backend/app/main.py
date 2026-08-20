@@ -44,19 +44,25 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing ChromaDB...")
     get_chroma_client()
 
-    # Embedding API 连通性检查（不阻止启动，仅告警）
-    logger.info("Checking embedding API connectivity...")
+    # Embedding provider 连通性检查（不阻止启动，仅告警）
+    logger.info("Checking %s embedding connectivity...", settings.embedding_provider)
     try:
         from app.services.embedding_service import get_embedding_service
 
         embedding_service = get_embedding_service()
         if embedding_service.check_connectivity():
-            logger.info("Embedding API 连通性正常")
+            logger.info("%s Embedding 连通性正常", embedding_service.provider)
         else:
-            logger.warning(
-                "Embedding API 不可用（未配置 API Key 或网络不可达），"
-                "将回退到本地伪随机向量，检索结果可能不准确。"
-            )
+            if embedding_service.provider == "openai":
+                logger.warning(
+                    "OpenAI 兼容 Embedding 不可用，"
+                    "将回退到本地伪随机向量。"
+                )
+            else:
+                logger.warning(
+                    "%s Embedding 不可用；知识库不会写入随机向量。",
+                    embedding_service.provider,
+                )
     except Exception as e:
         logger.warning("Embedding API 连通性检查异常，将继续启动: %s", e)
 

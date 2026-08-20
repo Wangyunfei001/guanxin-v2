@@ -16,6 +16,8 @@ sys.path.insert(0, str(backend_dir))
 # 设置测试环境变量
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("OPENAI_API_KEY", "")
+os.environ["EMBEDDING_PROVIDER"] = "openai"
+os.environ["EMBEDDING_API_KEY"] = ""
 os.environ.setdefault("CHROMA_PERSIST_DIR", tempfile.mkdtemp(prefix="chroma_test_"))
 os.environ.setdefault("UPLOAD_DIR", tempfile.mkdtemp(prefix="uploads_test_"))
 os.environ.setdefault(

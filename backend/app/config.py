@@ -5,9 +5,9 @@
 """
 
 from pathlib import Path
-from typing import List
+from typing import List, Literal
 
-from pydantic import field_validator
+from pydantic import PositiveInt, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,9 +42,12 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
 
     # === Embedding 配置 ===
+    embedding_provider: Literal["openai", "ollama", "local"] = "openai"
     embedding_api_base: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     embedding_api_key: str = ""
     embedding_model: str = "text-embedding-v3"
+    embedding_dimension: PositiveInt = 1024
+    ollama_base_url: str = "http://127.0.0.1:11434"
 
     # === 文件上传 ===
     upload_dir: str = "./data/uploads"

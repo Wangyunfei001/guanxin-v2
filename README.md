@@ -24,7 +24,14 @@
 
 ## 快速开始
 
-环境要求：Python 3.11+、Node.js 18+。
+环境要求：Python 3.11+、Node.js 18+、Ollama（本地 Embedding）。
+
+首次启动前准备本地向量模型：
+
+```bash
+ollama pull bge-m3
+ollama serve
+```
 
 ```bash
 ./scripts/start.sh
@@ -72,9 +79,17 @@ DATABASE_PATH=./data/guanxin.db
 CHROMA_PERSIST_DIR=./data/chroma
 UPLOAD_DIR=./data/uploads
 OPENAI_API_KEY=
+OPENAI_API_BASE=https://api.deepseek.com
+OPENAI_MODEL=deepseek-v4-flash
+EMBEDDING_PROVIDER=ollama
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+EMBEDDING_MODEL=bge-m3:latest
+EMBEDDING_DIMENSION=1024
 ```
 
-未配置模型 Key 时，Assistant 使用演示响应；自动化测试不会调用真实付费模型。
+Agent 通过 DeepSeek 的 OpenAI 兼容接口工作；知识库使用本机 `bge-m3:latest`
+生成 1024 维向量。Ollama 不可用时会明确报错，不会写入随机向量。
+自动化测试会 mock 外部模型调用。
 
 ## 预设账号
 
@@ -131,4 +146,4 @@ npm run build
 - 当前目标是本地稳定演示，不包含生产部署、审计日志、限流或远程 MCP SSE。
 - 用户账号本轮继续保存在 `users.json`。
 - MCP 当前为本地 stdio 连接。
-- 未配置真实模型与 Embedding 服务时，回答与向量检索使用演示回退能力。
+- 本地 Ollama 必须在后端启动前可用；当 `bge-m3:latest` 不可用时，知识库不会退化为随机向量。
