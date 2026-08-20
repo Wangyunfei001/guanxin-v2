@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     # === 数据库 ===
     chroma_persist_dir: str = "./data/chroma"
     database_path: str = "./data/guanxin.db"
+    checkpoint_database_path: str = "./data/guanxin-checkpoints.db"
 
     # === LLM 配置 ===
     openai_api_key: str = ""
@@ -58,7 +59,7 @@ class Settings(BaseSettings):
 
     # === Agent 配置 ===
     agent_mode: str = "state_graph"  # "state_graph" | "legacy"
-    available_models: str = "deepseek-v4-flash,gpt-4o-mini,gpt-4o,deepseek-v3"
+    available_models: str = "deepseek-chat,deepseek-reasoner,gpt-4o-mini,gpt-4o"
     openai_temperature: float = 0.7
 
     # === 预设用户 ===
@@ -100,6 +101,13 @@ class Settings(BaseSettings):
     def business_database_path(self) -> Path:
         """SQLite 业务数据库路径。"""
         p = Path(self.database_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def checkpoint_path(self) -> Path:
+        """LangGraph SQLite checkpoint 数据库路径。"""
+        p = Path(self.checkpoint_database_path)
         p.parent.mkdir(parents=True, exist_ok=True)
         return p
 

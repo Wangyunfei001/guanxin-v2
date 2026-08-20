@@ -1,5 +1,5 @@
 import client from "./client"
-import type { Conversation, ConversationDetail, ApiResponse, AgentConfig } from "@/types"
+import type { Conversation, ConversationDetail, ApiResponse, AgentConfig, WorkflowData } from "@/types"
 
 /**
  * Agent API module.
@@ -59,6 +59,25 @@ export const agentApi = {
     conversationId: string,
   ): Promise<ApiResponse<{ deleted: boolean }>> {
     return client.delete(`/agent/conversations/${conversationId}`)
+  },
+
+  getWorkflow(runId: string): Promise<ApiResponse<WorkflowData>> {
+    return client.get(`/agent/workflows/${runId}`)
+  },
+
+  cancelWorkflow(runId: string): Promise<ApiResponse<WorkflowData>> {
+    return client.post(`/agent/workflows/${runId}/cancel`)
+  },
+
+  resolveWorkflow(
+    runId: string,
+    action: "mark_completed" | "retry" | "cancel",
+    resultSummary = "",
+  ): Promise<ApiResponse<WorkflowData>> {
+    return client.post(`/agent/workflows/${runId}/resolve`, {
+      action,
+      result_summary: resultSummary,
+    })
   },
 
 }

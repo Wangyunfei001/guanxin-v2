@@ -20,6 +20,9 @@ class DeleteUserSkill(BaseSkill):
             ],
             tags=["用户管理", "删除"],
             category="user",
+            effect="write",
+            approval_required=True,
+            idempotent=False,
         )
 
     async def execute(self, params: Dict[str, Any], context: SkillContext) -> SkillResult:

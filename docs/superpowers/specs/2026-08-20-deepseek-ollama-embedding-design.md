@@ -10,7 +10,7 @@
 
 采用显式 Ollama provider，而不是把 Ollama 伪装成需要假 API Key 的 OpenAI Embedding 服务。
 
-- Agent：`OPENAI_API_BASE=https://api.deepseek.com`，模型使用 `deepseek-v4-flash`。
+- Agent：`OPENAI_API_BASE=https://api.deepseek.com`，模型使用 `deepseek-chat`。
 - Embedding：`EMBEDDING_PROVIDER=ollama`，`OLLAMA_BASE_URL=http://127.0.0.1:11434`，模型使用 `bge-m3:latest`。
 - Ollama 调用原生 `POST /api/embed`，批量传入文本并读取 `embeddings`。
 - 已安装的 `bge-m3:latest` 输出 1024 维向量；服务必须验证返回数量、维度一致性和数值结构。
@@ -76,7 +76,7 @@
 
 ## 7. 完成条件
 
-- Agent 配置使用 DeepSeek 官方端点和 `deepseek-v4-flash`。
+- Agent 配置使用 DeepSeek 官方端点和 `deepseek-chat`。
 - Embedding 请求只发往本机 Ollama，远程 Embedding Key 为空。
 - Ollama 故障不会写入随机或维度不一致的向量。
 - 示例知识库全部以 `bge-m3:latest` 重建并可检索。

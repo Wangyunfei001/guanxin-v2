@@ -14,6 +14,7 @@ from app.api.router import api_router
 from app.config import settings
 from app.core.database import get_chroma_client
 from app.core.sqlite import initialize_database
+from app.core.checkpoints import close_checkpointer, initialize_checkpointer
 from app.core.deps import init_preset_users
 from app.core.middleware import RequestContextMiddleware
 from app.core.responses import success
@@ -39,6 +40,14 @@ async def lifespan(app: FastAPI):
     # 2. 初始化 ChromaDB
     logger.info("Initializing SQLite business database...")
     initialize_database()
+
+    logger.info("Initializing LangGraph checkpoints...")
+    await initialize_checkpointer()
+    from app.services.workflow_store import get_workflow_store
+
+    recovered = get_workflow_store().recover_inflight()
+    if recovered:
+        logger.warning("Recovered %s interrupted workflow step(s)", recovered)
 
     # 3. 初始化 ChromaDB
     logger.info("Initializing ChromaDB...")
@@ -86,6 +95,7 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("=== 观心 v2 关闭 ===")
+    await close_checkpointer()
 
 
 def create_app() -> FastAPI:

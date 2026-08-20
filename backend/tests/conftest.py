@@ -24,6 +24,10 @@ os.environ.setdefault(
     "DATABASE_PATH",
     str(Path(tempfile.mkdtemp(prefix="sqlite_test_")) / "guanxin-test.db"),
 )
+os.environ.setdefault(
+    "CHECKPOINT_DATABASE_PATH",
+    str(Path(tempfile.mkdtemp(prefix="checkpoint_test_")) / "checkpoints-test.db"),
+)
 
 
 @pytest.fixture(scope="session")

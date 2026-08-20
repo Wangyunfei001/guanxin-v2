@@ -24,14 +24,19 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app.agent.confirmations import get_confirmation_entities
 from app.agent.executor import execute_agent
 from app.core.deps import get_current_user
 from app.models.tenant import User
-from app.models.skill_context import SkillContext
-from app.services.approval_store import get_approval_store
+from app.models.agent import ConversationMessage
 from app.services.conversation_store import get_conversation_store
-from app.skills.executor import SkillExecutor
+from app.workflows.engine import resume_workflow, start_workflow
+from app.workflows.planner import WorkflowPlannerError, detect_workflow_intent
+from app.workflows.catalog import catalog_by_name
+from app.models.agent import get_agent_config_store
+from app.services.workflow_store import (
+    WorkflowConflictError,
+    get_workflow_store,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,89 +73,232 @@ def _approval_params(reason: str) -> dict:
         return {}
 
 
-async def _stream_approval_response(
-    approval_response: dict,
+def _workflow_public_data(run: dict[str, Any]) -> dict[str, Any]:
+    """Return the UI-safe, history-persisted workflow snapshot."""
+    steps = [
+        {
+            "step_id": step["step_id"],
+            "position": step["position"],
+            "title": step["title"],
+            "tool_name": step["tool_name"],
+            "category": step["tool_category"],
+            "risk": step["risk"],
+            "status": step["status"],
+            "attempt_count": step["attempt_count"],
+            "result": step["result"],
+            "error": step["error"],
+        }
+        for step in run["steps"]
+    ]
+    pending = next(
+        (item for item in reversed(run["interrupts"]) if item["status"] == "pending"),
+        None,
+    )
+    return {
+        "run_id": run["run_id"],
+        "conversation_id": run["conversation_id"],
+        "goal": run["goal"],
+        "summary": run["summary"],
+        "status": run["status"],
+        "current_step_index": run["current_step_index"],
+        "version": run["version"],
+        "last_error": run["last_error"],
+        "steps": steps,
+        "pending_interrupt": (
+            {
+                "interrupt_id": pending["interrupt_id"],
+                "kind": pending["kind"],
+                "payload": pending["payload"],
+            }
+            if pending
+            else None
+        ),
+    }
+
+
+def _pending_workflow_part(run: dict[str, Any]) -> Optional[dict[str, Any]]:
+    pending = next(
+        (item for item in reversed(run["interrupts"]) if item["status"] == "pending"),
+        None,
+    )
+    if pending is None or pending["kind"] not in {"input", "approval"}:
+        return None
+    tool_call_id = f"workflow_{pending['interrupt_id']}"
+    return {
+        "type": "tool-workflow_control",
+        "toolCallId": tool_call_id,
+        "state": "approval-requested",
+        "input": {
+            "run_id": run["run_id"],
+            "interrupt_id": pending["interrupt_id"],
+            "kind": pending["kind"],
+            **pending["payload"],
+        },
+        "approval": {"id": pending["interrupt_id"]},
+    }
+
+
+def _workflow_result_text(run: dict[str, Any]) -> str:
+    if run["status"] == "completed":
+        return f"工作流已完成：{run['goal']}"
+    if run["status"] == "cancelled":
+        return "工作流已取消。"
+    if run["status"] == "failed":
+        return f"工作流执行失败：{run['last_error'] or '未知错误'}"
+    if run["status"] == "uncertain":
+        return "风险步骤的执行结果不确定，请在工作流卡片中选择处理方式。"
+    return ""
+
+
+async def _emit_workflow_state(
+    run: dict[str, Any],
+    *,
+    include_data: bool,
+    responded_tool_call_id: str = "",
+) -> AsyncGenerator[str, None]:
+    """Emit an AI SDK response for a workflow snapshot."""
+    message_id = f"msg_{uuid.uuid4().hex[:12]}"
+    yield _aisdk_event("start", messageId=message_id)
+    data = _workflow_public_data(run)
+    if include_data:
+        yield _aisdk_event("data-workflow", data=data)
+    if responded_tool_call_id:
+        yield _aisdk_event(
+            "tool-output-available",
+            toolCallId=responded_tool_call_id,
+            output={"run_id": run["run_id"], "status": run["status"]},
+        )
+    pending_part = _pending_workflow_part(run)
+    if pending_part:
+        yield _aisdk_event(
+            "tool-input-available",
+            toolCallId=pending_part["toolCallId"],
+            toolName="workflow_control",
+            input=pending_part["input"],
+        )
+        yield _aisdk_event(
+            "tool-approval-request",
+            toolCallId=pending_part["toolCallId"],
+            approvalId=pending_part["approval"]["id"],
+        )
+    text = _workflow_result_text(run)
+    if text:
+        text_id = f"text_{uuid.uuid4().hex[:12]}"
+        yield _aisdk_event("text-start", id=text_id)
+        yield _aisdk_event("text-delta", id=text_id, delta=text)
+        yield _aisdk_event("text-end", id=text_id)
+    yield _aisdk_event("finish-step")
+    yield _aisdk_event("finish")
+    yield "data: [DONE]\n\n"
+
+
+async def _stream_workflow_start(
+    *,
+    user_message: str,
+    intent: str,
     conversation_id: str,
     tenant_id: str,
     user_id: str,
     user_role: str,
+    agent_id: str,
 ) -> AsyncGenerator[str, None]:
-    """Resolve and, when approved, consume an action exactly once."""
-    approval_store = get_approval_store()
-    approval = approval_store.respond(
-        approval_response["approval_id"],
-        conversation_id,
-        approval_response["approved"],
-        approval_response.get("reason", ""),
-    )
-    if approval is None:
-        yield _aisdk_event("error", errorText="Approval not found")
-        yield "data: [DONE]\n\n"
-        return
-
-    tool_call_id = approval["tool_call_id"]
     conv_store = get_conversation_store()
-    if not approval_response["approved"]:
-        conv_store.update_approval_part(
-            conversation_id,
-            approval["approval_id"],
-            approved=False,
-            reason=approval_response.get("reason", ""),
-        )
-        yield _aisdk_event("tool-output-denied", toolCallId=tool_call_id)
-        yield _aisdk_event("finish-step")
-        yield _aisdk_event("finish")
-        yield "data: [DONE]\n\n"
-        return
-
-    claimed = approval_store.consume(approval["approval_id"], conversation_id)
-    if claimed is None:
-        # A retry after consumption returns the persisted result without executing again.
-        yield _aisdk_event("finish-step")
-        yield _aisdk_event("finish")
-        yield "data: [DONE]\n\n"
-        return
-
-    intent_to_skill = {
-        "single_create": "create_user",
-        "single_update": "update_user",
-        "single_delete": "delete_user",
-        "batch_operation": "export_data",
-    }
-    intent_label = claimed["action"].get("intent_label", "")
-    skill_name = intent_to_skill.get(intent_label)
-    if not skill_name:
-        result = {"success": False, "error": "Unsupported approved action"}
-    elif user_role != "admin":
-        result = {"success": False, "error": "权限不足：该操作仅管理员可执行"}
-    else:
-        params = _approval_params(claimed["action"].get("approval_reason", ""))
-        result = SkillExecutor().execute(
-            skill_name,
-            params,
-            SkillContext(
-                tenant_id=tenant_id,
-                user_id=user_id,
-                user_role=user_role,
-                conversation_id=conversation_id,
-            ),
-        ).to_dict()
-
-    conv_store.update_approval_part(
+    conv_store.add_message(
         conversation_id,
-        claimed["approval_id"],
-        approved=True,
+        ConversationMessage(role="user", content=user_message),
+    )
+    try:
+        run = await start_workflow(
+            user_message=user_message,
+            intent=intent,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_role=user_role,
+            conversation_id=conversation_id,
+            agent_id=agent_id,
+        )
+    except (WorkflowPlannerError, WorkflowConflictError) as exc:
+        message = f"无法创建工作流：{exc}"
+        conv_store.add_message(
+            conversation_id,
+            ConversationMessage(
+                role="assistant",
+                content=message,
+                parts=[{"type": "text", "text": message}],
+            ),
+        )
+        yield _aisdk_event("error", errorText=str(exc))
+        yield "data: [DONE]\n\n"
+        return
+    data = _workflow_public_data(run)
+    parts: list[dict[str, Any]] = [{"type": "data-workflow", "data": data}]
+    pending_part = _pending_workflow_part(run)
+    if pending_part:
+        parts.append(pending_part)
+    text = _workflow_result_text(run)
+    if text:
+        parts.append({"type": "text", "text": text})
+    conv_store.add_message(
+        conversation_id,
+        ConversationMessage(role="assistant", content=text, parts=parts, tool_calls=[pending_part] if pending_part else []),
+    )
+    async for event in _emit_workflow_state(run, include_data=True):
+        yield event
+
+
+async def _stream_workflow_resume(
+    approval_response: dict[str, Any],
+    *,
+    tenant_id: str,
+    user_id: str,
+    user_role: str,
+) -> AsyncGenerator[str, None]:
+    values = _approval_params(approval_response.get("reason", ""))
+    try:
+        run = await resume_workflow(
+            interrupt_id=approval_response["approval_id"],
+            accepted=approval_response["approved"],
+            values=values,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_role=user_role,
+        )
+    except (LookupError, PermissionError) as exc:
+        yield _aisdk_event("error", errorText=str(exc))
+        yield "data: [DONE]\n\n"
+        return
+    conv_store = get_conversation_store()
+    conv_store.update_approval_part(
+        run["conversation_id"],
+        approval_response["approval_id"],
+        approved=approval_response["approved"],
         reason=approval_response.get("reason", ""),
-        output=result,
+        output={"run_id": run["run_id"], "status": run["status"]},
     )
-    yield _aisdk_event(
-        "tool-output-available",
-        toolCallId=tool_call_id,
-        output=result,
+    conv_store.update_workflow_part(
+        run["conversation_id"], run["run_id"], _workflow_public_data(run)
     )
-    yield _aisdk_event("finish-step")
-    yield _aisdk_event("finish")
-    yield "data: [DONE]\n\n"
+    pending_part = _pending_workflow_part(run)
+    text = _workflow_result_text(run)
+    if pending_part or text:
+        parts = ([pending_part] if pending_part else []) + (
+            [{"type": "text", "text": text}] if text else []
+        )
+        conv_store.add_message(
+            run["conversation_id"],
+            ConversationMessage(
+                role="assistant",
+                content=text,
+                parts=parts,
+                tool_calls=[pending_part] if pending_part else [],
+            ),
+        )
+    async for event in _emit_workflow_state(
+        run,
+        include_data=False,
+        responded_tool_call_id=approval_response.get("tool_call_id", ""),
+    ):
+        yield event
 
 
 router = APIRouter(prefix="/agent", tags=["AI-SDK"])
@@ -192,14 +340,23 @@ async def _stream_aisdk_response(
 
     approval_response = _find_approval_response(messages)
     if approval_response:
-        async for event in _stream_approval_response(
-            approval_response,
-            input_body["id"],
-            tenant_id,
-            user_id,
-            user_role,
-        ):
-            yield event
+        workflow_interrupt = get_workflow_store().get_interrupt(
+            approval_response["approval_id"]
+        )
+        if workflow_interrupt is not None:
+            async for event in _stream_workflow_resume(
+                approval_response,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                user_role=user_role,
+            ):
+                yield event
+            return
+        yield _aisdk_event(
+            "error",
+            errorText="旧审批链路已停用；历史记录仅支持查看",
+        )
+        yield "data: [DONE]\n\n"
         return
 
     # 提取最后一条用户消息
@@ -219,6 +376,20 @@ async def _stream_aisdk_response(
     if not user_message:
         yield _aisdk_event("error", errorText="No user message found in input")
         yield "data: [DONE]\n\n"
+        return
+
+    workflow_intent = detect_workflow_intent(user_message)
+    if workflow_intent:
+        async for event in _stream_workflow_start(
+            user_message=user_message,
+            intent=workflow_intent,
+            conversation_id=input_body["id"],
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_role=user_role,
+            agent_id="default",
+        ):
+            yield event
         return
 
     # 生成唯一 ID
@@ -336,29 +507,12 @@ async def _stream_aisdk_response(
 
             # --- confirm_required ---
             elif event_subtype == "confirm_required":
-                confirm_call_id = data.get("tool_call_id") or f"confirm_{uuid.uuid4().hex[:12]}"
-                approval_id = data.get("approval_id") or f"approval_{uuid.uuid4().hex[:12]}"
-                action_desc = data.get("action", "执行操作")
-                entities = data.get("entities", {})
-
-                # If entities is empty, populate form fields based on intent
-                if not entities and tracked_intent:
-                    entities = get_confirmation_entities(tracked_intent)
-
-                if entities.get("title"):
-                    action_desc = entities["title"]
-
                 yield _aisdk_event(
-                    "tool-input-available",
-                    toolCallId=confirm_call_id,
-                    toolName="confirm_action",
-                    input={"action": action_desc, "entities": entities},
+                    "error",
+                    errorText="旧确认执行分支已停用，请通过持久化工作流重试",
                 )
-                yield _aisdk_event(
-                    "tool-approval-request",
-                    toolCallId=confirm_call_id,
-                    approvalId=approval_id,
-                )
+                yield "data: [DONE]\n\n"
+                return
 
             # --- done ---
             elif event_subtype == "done":
@@ -424,6 +578,36 @@ async def chat_aisdk(
     )
     if conversation is None:
         raise HTTPException(status_code=404, detail="对话未找到")
+
+    approval_response = _find_approval_response(body.get("messages", []))
+    if approval_response and approval_response.get("approved"):
+        workflow_interrupt = get_workflow_store().get_interrupt(
+            approval_response["approval_id"]
+        )
+        if workflow_interrupt is not None:
+            workflow_run = get_workflow_store().get_run(
+                workflow_interrupt["run_id"], user.tenant_id, user.user_id
+            )
+            if workflow_run is None:
+                raise HTTPException(status_code=404, detail="工作流未找到")
+            step = next(
+                (
+                    item for item in workflow_run["steps"]
+                    if item["step_id"] == workflow_interrupt["step_id"]
+                ),
+                None,
+            )
+            config = get_agent_config_store().get_config(
+                user.tenant_id, workflow_run["agent_id"]
+            )
+            allowed = catalog_by_name(config, user.role) if config else {}
+            if step is None or step["tool_name"] not in allowed:
+                raise HTTPException(status_code=403, detail="工具已禁用或当前用户无权执行")
+    active_run = get_workflow_store().get_active_for_conversation(
+        conversation_id, user.tenant_id, user.user_id
+    )
+    if active_run and not approval_response:
+        raise HTTPException(status_code=409, detail="请先处理或取消当前工作流")
 
     return StreamingResponse(
         _stream_aisdk_response(body, user.tenant_id, user.user_id, user.role),

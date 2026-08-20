@@ -1,3 +1,5 @@
+import type { UIMessage } from "ai"
+
 // ============ API Response ============
 export interface ApiResponse<T = any> {
   code: number
@@ -70,6 +72,57 @@ export interface AgentConfig {
   tools_count: number
   skills_count: number
 }
+
+// ============ Persistent Workflows ============
+export type WorkflowStatus =
+  | "planning"
+  | "running"
+  | "waiting_input"
+  | "waiting_approval"
+  | "uncertain"
+  | "completed"
+  | "failed"
+  | "cancelled"
+
+export interface WorkflowStep {
+  step_id: string
+  position: number
+  title: string
+  tool_name: string
+  category?: string
+  tool_category?: string
+  risk: "read" | "write" | "unknown"
+  status: string
+  attempt_count: number
+  result: unknown
+  error: string
+}
+
+export interface WorkflowData {
+  run_id: string
+  conversation_id: string
+  goal: string
+  summary: string
+  status: WorkflowStatus
+  current_step_index: number
+  version: number
+  last_error: string
+  steps: WorkflowStep[]
+  pending_interrupt?: {
+    interrupt_id: string
+    kind: "input" | "approval" | "recovery"
+    payload: Record<string, unknown>
+  } | null
+  created_at?: string
+  updated_at?: string
+}
+
+export type GuanxinDataParts = {
+  workflow: WorkflowData
+  a2ui: { schema: A2UISchema; toolCallId?: string }
+}
+
+export type GuanxinUIMessage = UIMessage<unknown, GuanxinDataParts>
 
 // ============ A2UI ============
 export interface A2UISchema {

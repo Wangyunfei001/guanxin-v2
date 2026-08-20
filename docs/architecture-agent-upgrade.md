@@ -1,6 +1,8 @@
 # 观心 v2 Agent 架构升级技术方案
 
-> 版本：v1.0 / 日期：2026-07-13 / 状态：Draft / 作者：架构师 高见远
+> 版本：v2.0 / 日期：2026-08-20 / 状态：Implemented / 作者：架构师 高见远
+
+> 2026-08-20 实施说明：本文后续章节保留最初的演进设计作为决策记录。当前实现已进一步升级为持久化线性工作流：DeepSeek Planner 生成最多 16 步计划，LangGraph 通过 `interrupt()` / `Command(resume=...)` 暂停恢复，业务状态与 checkpoint 分别保存在两份 SQLite 中。单步写操作也走该引擎；旧的 prompt 确认方案不再用于新请求。现行运行时设计以 [`docs/architecture.md`](./architecture.md) 为准。
 
 ---
 

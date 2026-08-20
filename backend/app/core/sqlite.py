@@ -9,7 +9,7 @@ from typing import Iterator, Optional
 
 from app.config import settings
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _database_path() -> Path:
@@ -142,6 +142,89 @@ def initialize_database() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_approvals_conversation
                 ON tool_approvals(conversation_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS workflow_runs (
+                run_id TEXT PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+                agent_id TEXT NOT NULL,
+                goal TEXT NOT NULL,
+                summary TEXT NOT NULL DEFAULT '',
+                plan_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL CHECK(status IN (
+                    'planning','running','waiting_input','waiting_approval',
+                    'uncertain','completed','failed','cancelled'
+                )),
+                current_step_index INTEGER NOT NULL DEFAULT 0,
+                checkpoint_thread_id TEXT NOT NULL UNIQUE,
+                version INTEGER NOT NULL DEFAULT 1,
+                last_error TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_workflow_runs_owner
+                ON workflow_runs(tenant_id, user_id, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_workflow_runs_conversation
+                ON workflow_runs(conversation_id, updated_at DESC);
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_active_conversation
+                ON workflow_runs(conversation_id)
+                WHERE status IN (
+                    'planning','running','waiting_input','waiting_approval','uncertain'
+                );
+
+            CREATE TABLE IF NOT EXISTS workflow_steps (
+                step_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL REFERENCES workflow_runs(run_id) ON DELETE CASCADE,
+                position INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                tool_name TEXT NOT NULL,
+                tool_category TEXT NOT NULL,
+                args_json TEXT NOT NULL DEFAULT '{}',
+                resolved_args_json TEXT NOT NULL DEFAULT '{}',
+                risk TEXT NOT NULL CHECK(risk IN ('read','write','unknown')),
+                status TEXT NOT NULL CHECK(status IN (
+                    'pending','waiting_input','waiting_approval','executing',
+                    'completed','failed','uncertain','cancelled'
+                )),
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                result_json TEXT NOT NULL DEFAULT 'null',
+                error TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(run_id, position)
+            );
+            CREATE INDEX IF NOT EXISTS idx_workflow_steps_run
+                ON workflow_steps(run_id, position);
+
+            CREATE TABLE IF NOT EXISTS workflow_interrupts (
+                interrupt_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL REFERENCES workflow_runs(run_id) ON DELETE CASCADE,
+                step_id TEXT NOT NULL REFERENCES workflow_steps(step_id) ON DELETE CASCADE,
+                kind TEXT NOT NULL CHECK(kind IN ('input','approval','recovery')),
+                status TEXT NOT NULL CHECK(status IN ('pending','resolved','rejected','cancelled')),
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                response_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_workflow_interrupts_run
+                ON workflow_interrupts(run_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS workflow_step_executions (
+                execution_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL REFERENCES workflow_runs(run_id) ON DELETE CASCADE,
+                step_id TEXT NOT NULL REFERENCES workflow_steps(step_id) ON DELETE CASCADE,
+                attempt INTEGER NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                status TEXT NOT NULL CHECK(status IN ('executing','completed','failed','uncertain')),
+                result_json TEXT NOT NULL DEFAULT 'null',
+                error TEXT NOT NULL DEFAULT '',
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                UNIQUE(run_id, step_id, attempt)
+            );
             """
         )
         conn.execute(

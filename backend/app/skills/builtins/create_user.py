@@ -23,6 +23,9 @@ class CreateUserSkill(BaseSkill):
             ],
             tags=["用户管理", "创建"],
             category="user",
+            effect="write",
+            approval_required=True,
+            idempotent=False,
         )
 
     async def execute(self, params: Dict[str, Any], context: SkillContext) -> SkillResult:

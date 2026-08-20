@@ -4,8 +4,7 @@ import { AiSdkRuntimeProvider } from "@/components/assistant-ui/aisdk-runtime-pr
 import { Thread } from "@/components/assistant-ui/thread";
 import { Button } from "@/components/ui/button";
 import { agentApi } from "@/lib/api/agent";
-import type { Conversation, ConversationDetail } from "@/types";
-import type { UIMessage } from "ai";
+import type { Conversation, ConversationDetail, GuanxinUIMessage } from "@/types";
 import { Menu, MessageSquarePlus, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -69,12 +68,12 @@ export default function Assistant() {
     }
   };
 
-  const initialMessages: UIMessage[] = (active?.messages || [])
+  const initialMessages: GuanxinUIMessage[] = (active?.messages || [])
     .filter((message) => message.role !== "system")
     .map((message) => ({
       id: message.message_id,
       role: message.role as "user" | "assistant",
-      parts: message.parts as UIMessage["parts"],
+      parts: message.parts as GuanxinUIMessage["parts"],
     }));
 
   const sidebar = (

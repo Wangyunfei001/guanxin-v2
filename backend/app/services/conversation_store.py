@@ -283,6 +283,38 @@ class ConversationStore:
                     return True
         return False
 
+    def update_workflow_part(
+        self,
+        conversation_id: str,
+        run_id: str,
+        data: dict[str, Any],
+    ) -> bool:
+        """Replace the persisted data-workflow snapshot for a run."""
+        with transaction() as conn:
+            rows = conn.execute(
+                """
+                SELECT message_id, parts_json FROM conversation_messages
+                WHERE conversation_id=? ORDER BY created_at
+                """,
+                (conversation_id,),
+            ).fetchall()
+            for row in rows:
+                parts = json.loads(row["parts_json"] or "[]")
+                for part in parts:
+                    if (
+                        isinstance(part, dict)
+                        and part.get("type") == "data-workflow"
+                        and isinstance(part.get("data"), dict)
+                        and part["data"].get("run_id") == run_id
+                    ):
+                        part["data"] = data
+                        conn.execute(
+                            "UPDATE conversation_messages SET parts_json=? WHERE message_id=?",
+                            (json.dumps(parts, ensure_ascii=False), row["message_id"]),
+                        )
+                        return True
+        return False
+
 
 # 全局单例
 _conversation_store: Optional[ConversationStore] = None

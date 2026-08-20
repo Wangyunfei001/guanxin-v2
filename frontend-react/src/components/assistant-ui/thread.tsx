@@ -17,6 +17,9 @@ import {
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { KbRetrievalRenderer } from "@/components/assistant-ui/tool-renderers/kb-retrieval";
 import { ConfirmActionRenderer } from "@/components/assistant-ui/tool-renderers/confirm-action";
+import { WorkflowControlRenderer } from "@/components/assistant-ui/tool-renderers/workflow-control";
+import { WorkflowDataRenderer } from "@/components/assistant-ui/workflow-card";
+import { selectHasActiveWorkflow, useWorkflowUiStore } from "@/lib/stores/workflow";
 import {
   ToolGroupContent,
   ToolGroupRoot,
@@ -110,6 +113,7 @@ const isNewChatView = (s: AssistantState) =>
 
 export const Thread: FC<ThreadProps> = ({ components = EMPTY_COMPONENTS }) => {
   useAssistantDataUI({ name: "a2ui", render: A2UIDataRenderer });
+  useAssistantDataUI({ name: "workflow", render: WorkflowDataRenderer });
   const isEmpty = useAuiState(isNewChatView);
 
   return (
@@ -239,6 +243,7 @@ const ThreadSuggestionItem: FC = () => {
 };
 
 const Composer: FC = () => {
+  const hasActiveWorkflow = useWorkflowUiStore(selectHasActiveWorkflow);
   return (
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
       <ComposerPrimitive.AttachmentDropzone asChild>
@@ -248,21 +253,22 @@ const Composer: FC = () => {
         >
           <ComposerAttachments />
           <ComposerPrimitive.Input
-            placeholder="Send a message..."
+            placeholder={hasActiveWorkflow ? "请先处理或取消当前工作流" : "Send a message..."}
             className="aui-composer-input caret-primary placeholder:text-muted-foreground/80 max-h-32 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base outline-none"
             rows={1}
             autoFocus
             enterKeyHint="send"
             aria-label="Message input"
+            disabled={hasActiveWorkflow}
           />
-          <ComposerAction />
+          <ComposerAction disabled={hasActiveWorkflow} />
         </div>
       </ComposerPrimitive.AttachmentDropzone>
     </ComposerPrimitive.Root>
   );
 };
 
-const ComposerAction: FC = () => {
+const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
       <ComposerAddAttachment />
@@ -309,6 +315,7 @@ const ComposerAction: FC = () => {
               size="icon"
               className="aui-composer-send size-7 rounded-full"
               aria-label="Send message"
+              disabled={disabled}
             >
               <ArrowUpIcon className="aui-composer-send-icon size-4.5" />
             </TooltipIconButton>
@@ -412,6 +419,8 @@ const AssistantMessage: FC = () => {
                 if (part.toolUI) return part.toolUI;
                 if (part.toolName === "confirm_action")
                   return <ConfirmActionRenderer {...(part as any)} />;
+                if (part.toolName === "workflow_control")
+                  return <WorkflowControlRenderer {...(part as any)} />;
                 if (part.toolName === "kb_retrieval")
                   return <KbRetrievalRenderer {...(part as any)} />;
                 return <ToolFallbackComponent {...part} />;

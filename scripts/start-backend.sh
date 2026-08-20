@@ -41,11 +41,7 @@ log_info "虚拟环境: $VENV_DIR"
 
 # === 安装依赖 ===
 log_info "检查并安装依赖..."
-pip install --quiet -e ".[dev]" 2>/dev/null || pip install --quiet -e . 2>/dev/null || {
-    log_warn "pip install -e 失败，尝试直接安装核心依赖..."
-    pip install --quiet fastapi uvicorn pydantic pydantic-settings python-multipart \
-        python-jose passlib chromadb langchain langchain-openai langgraph mcp httpx
-}
+pip install --quiet -e ".[dev]"
 
 # === 检查 .env ===
 if [ ! -f "$BACKEND_DIR/.env" ]; then

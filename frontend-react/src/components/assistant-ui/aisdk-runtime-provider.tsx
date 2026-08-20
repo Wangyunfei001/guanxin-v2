@@ -7,15 +7,15 @@ import { useChat } from "@ai-sdk/react";
 import {
   DefaultChatTransport,
   lastAssistantMessageIsCompleteWithApprovalResponses,
-  type UIMessage,
 } from "ai";
+import type { GuanxinUIMessage } from "@/types";
 
 // ── Provider ──
 
 export const AiSdkRuntimeProvider: FC<{
   children: ReactNode;
   conversationId: string;
-  initialMessages?: UIMessage[];
+  initialMessages?: GuanxinUIMessage[];
 }> = ({
   children,
   conversationId,
@@ -42,7 +42,7 @@ export const AiSdkRuntimeProvider: FC<{
   );
 
   // AI SDK chat hook — connects to our Python backend AI SDK endpoint
-  const chatHelpers = useChat({
+  const chatHelpers = useChat<GuanxinUIMessage>({
     id: conversationId,
     messages: initialMessages,
     transport,

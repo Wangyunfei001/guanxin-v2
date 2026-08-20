@@ -4,6 +4,8 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from typing import Literal
+
 from pydantic import BaseModel
 
 from app.config import settings
@@ -14,6 +16,9 @@ from app.models.tenant import User
 from app.services.conversation_store import get_conversation_store
 from app.skills.registry import get_skill_registry
 from app.skills.executor import ADMIN_ONLY_SKILLS
+from app.core.checkpoints import delete_checkpoint_thread
+from app.services.workflow_store import get_workflow_store, WorkflowConflictError
+from app.workflows.engine import resolve_uncertain_workflow
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
@@ -35,6 +40,47 @@ class UpdateAgentConfigRequest(BaseModel):
     enabled_tools: list[str]
     enabled_skills: list[str]
     mcp_servers: list[str]
+
+
+class ResolveWorkflowRequest(BaseModel):
+    action: Literal["mark_completed", "retry", "cancel"]
+    result_summary: str = ""
+
+
+def _workflow_response(run: dict) -> dict:
+    return {
+        "run_id": run["run_id"],
+        "conversation_id": run["conversation_id"],
+        "agent_id": run["agent_id"],
+        "goal": run["goal"],
+        "summary": run["summary"],
+        "status": run["status"],
+        "current_step_index": run["current_step_index"],
+        "version": run["version"],
+        "last_error": run["last_error"],
+        "steps": [
+            {
+                key: step[key]
+                for key in (
+                    "step_id", "position", "title", "tool_name", "tool_category",
+                    "risk", "status", "attempt_count", "result", "error",
+                )
+            }
+            for step in run["steps"]
+        ],
+        "interrupts": [
+            {
+                key: item[key]
+                for key in (
+                    "interrupt_id", "step_id", "kind", "status", "payload",
+                    "created_at", "updated_at",
+                )
+            }
+            for item in run["interrupts"]
+        ],
+        "created_at": run["created_at"],
+        "updated_at": run["updated_at"],
+    }
 
 
 def _config_response(config: AgentConfig, user_role: str = "admin") -> dict:
@@ -117,12 +163,72 @@ async def delete_conversation(
 ):
     """删除对话。"""
     conv_store = get_conversation_store()
+    run_ids = get_workflow_store().list_run_ids_for_conversation(
+        conversation_id, user.tenant_id, user.user_id
+    )
     deleted = conv_store.delete_conversation_for_user(
         conversation_id, user.tenant_id, user.user_id
     )
     if not deleted:
         return {"code": 4041, "message": "对话未找到", "data": None}
+    for run_id in run_ids:
+        await delete_checkpoint_thread(run_id)
     return success({"deleted": True})
+
+
+@router.get("/workflows/{run_id}")
+async def get_workflow(run_id: str, user: User = Depends(get_current_user)):
+    run = get_workflow_store().get_run(run_id, user.tenant_id, user.user_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="工作流未找到")
+    return success(_workflow_response(run))
+
+
+@router.post("/workflows/{run_id}/cancel")
+async def cancel_workflow(run_id: str, user: User = Depends(get_current_user)):
+    store = get_workflow_store()
+    run = store.get_run(run_id, user.tenant_id, user.user_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="工作流未找到")
+    if not store.cancel(run_id):
+        raise HTTPException(status_code=409, detail="当前工作流不能取消")
+    await delete_checkpoint_thread(run_id)
+    updated = store.get_run(run_id, user.tenant_id, user.user_id)
+    snapshot = _workflow_response(updated or run)
+    get_conversation_store().update_workflow_part(
+        run["conversation_id"], run_id, snapshot
+    )
+    return success(snapshot)
+
+
+@router.post("/workflows/{run_id}/resolve")
+async def resolve_workflow(
+    run_id: str,
+    request: ResolveWorkflowRequest,
+    user: User = Depends(get_current_user),
+):
+    store = get_workflow_store()
+    run = store.get_run(run_id, user.tenant_id, user.user_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="工作流未找到")
+    try:
+        updated = await resolve_uncertain_workflow(
+            run=run,
+            action=request.action,
+            result_summary=request.result_summary,
+            tenant_id=user.tenant_id,
+            user_id=user.user_id,
+            user_role=user.role,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (ValueError, WorkflowConflictError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    snapshot = _workflow_response(updated)
+    get_conversation_store().update_workflow_part(
+        updated["conversation_id"], run_id, snapshot
+    )
+    return success(snapshot)
 
 
 @router.get("/config")

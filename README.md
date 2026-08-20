@@ -12,6 +12,8 @@
 - stdio MCP 客户端与天气示例 Server
 - 租户级 Agent 配置；admin 可编辑，普通用户只读
 - API、SkillExecutor 与 Agent 工具三层 RBAC
+- 最多 16 步的持久化线性工作流，支持参数表单、审批、取消和故障接管
+- LangGraph interrupt/resume 与独立 SQLite checkpoint，刷新或重启后可继续
 
 ## 技术栈
 
@@ -19,7 +21,7 @@
 |---|---|
 | 后端 | Python 3.11+、FastAPI、LangGraph、原生 sqlite3 |
 | 前端 | Next.js 15、React 19、TypeScript、AI SDK、assistant-ui |
-| 数据 | SQLite（业务数据）、ChromaDB（向量）、users.json（账号） |
+| 数据 | SQLite（业务数据）、SQLite checkpoint、ChromaDB（向量）、users.json（账号） |
 | 工具协议 | MCP stdio、A2UI data parts |
 
 ## 快速开始
@@ -76,11 +78,12 @@ npm run dev
 
 ```dotenv
 DATABASE_PATH=./data/guanxin.db
+CHECKPOINT_DATABASE_PATH=./data/guanxin-checkpoints.db
 CHROMA_PERSIST_DIR=./data/chroma
 UPLOAD_DIR=./data/uploads
 OPENAI_API_KEY=
 OPENAI_API_BASE=https://api.deepseek.com
-OPENAI_MODEL=deepseek-v4-flash
+OPENAI_MODEL=deepseek-chat
 EMBEDDING_PROVIDER=ollama
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 EMBEDDING_MODEL=bge-m3:latest
@@ -111,6 +114,9 @@ Agent 通过 DeepSeek 的 OpenAI 兼容接口工作；知识库使用本机 `bge
 | POST | `/api/agent/conversations` | 创建会话 |
 | GET | `/api/agent/conversations/{id}` | 获取完整历史 parts |
 | POST | `/api/agent/chat/aisdk` | 认证后的 AI SDK UIMessage 流 |
+| GET | `/api/agent/workflows/{run_id}` | 获取工作流计划、步骤、中断与结果 |
+| POST | `/api/agent/workflows/{run_id}/cancel` | 取消自己的等待中工作流 |
+| POST | `/api/agent/workflows/{run_id}/resolve` | admin 接管不确定的风险步骤 |
 | GET / PUT | `/api/agent/config` | 读取 / admin 更新 Agent 配置 |
 | POST | `/api/a2ui/preview` | 使用 `{ "schema": ... }` 预览 |
 
@@ -127,9 +133,10 @@ cd ../frontend-react
 npm run lint
 npx tsc --noEmit
 npm run build
+npm run test:e2e
 ```
 
-当前测试覆盖 SQLite 幂等与重启持久、外键级联、并发写、租户/用户隔离、RBAC、A2UI 契约、Agent 配置校验及 approval 单次消费。
+当前测试覆盖 SQLite 幂等与重启持久、外键级联、并发写、租户/用户隔离、RBAC、A2UI 契约、Agent 配置、工作流计划校验、interrupt/resume、风险步骤故障接管及幂等执行。
 
 ## 数据与初始化
 
@@ -140,10 +147,12 @@ npm run build
 - `backend/data/uploads/`
 - `backend/data/chroma/`
 - `backend/data/guanxin.db` 及其 sidecar
+- `backend/data/guanxin-checkpoints.db` 及其 sidecar
 
 ## 已知边界
 
 - 当前目标是本地稳定演示，不包含生产部署、审计日志、限流或远程 MCP SSE。
 - 用户账号本轮继续保存在 `users.json`。
 - MCP 当前为本地 stdio 连接。
+- 工作流当前只支持线性计划，不支持条件分支、并行 DAG 或分布式执行。
 - 本地 Ollama 必须在后端启动前可用；当 `bge-m3:latest` 不可用时，知识库不会退化为随机向量。

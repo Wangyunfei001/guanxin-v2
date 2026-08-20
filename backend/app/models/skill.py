@@ -58,6 +58,9 @@ class SkillMetadata:
     tags: List[str] = field(default_factory=list)
     category: str = "general"
     dependencies: List[str] = field(default_factory=list)
+    effect: str = "read"  # read | write
+    approval_required: bool = False
+    idempotent: bool = True
     created_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -76,6 +79,9 @@ class SkillMetadata:
             "tags": self.tags,
             "category": self.category,
             "dependencies": self.dependencies,
+            "effect": self.effect,
+            "approval_required": self.approval_required,
+            "idempotent": self.idempotent,
             "created_at": self.created_at,
         }
 

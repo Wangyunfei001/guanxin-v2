@@ -2,7 +2,6 @@
 
 from app.models.agent import ConversationMessage
 from app.services.conversation_store import get_conversation_store
-from app.services.approval_store import get_approval_store
 
 
 def _config_payload(config: dict) -> dict:
@@ -115,7 +114,7 @@ def test_mcp_management_is_admin_only(test_client, user_headers):
     assert response.status_code == 403
 
 
-def _pending_approval(test_client, admin_headers, intent_label: str):
+def test_legacy_approval_history_is_read_only(test_client, admin_headers):
     created = test_client.post(
         "/api/agent/conversations",
         headers=admin_headers,
@@ -123,68 +122,19 @@ def _pending_approval(test_client, admin_headers, intent_label: str):
     ).json()["data"]
     approval_id = f"approval-{created['conversation_id']}"
     tool_call_id = f"call-{created['conversation_id']}"
-    get_approval_store().create(
-        approval_id,
-        tool_call_id,
-        created["conversation_id"],
-        {"intent_label": intent_label},
-    )
     part = {
         "type": "tool-confirm_action",
         "toolCallId": tool_call_id,
-        "state": "approval-requested",
+        "state": "output-denied",
         "input": {"action": "test", "entities": {}},
-        "approval": {"id": approval_id},
+        "approval": {"id": approval_id, "approved": False, "reason": "历史拒绝"},
     }
     get_conversation_store().add_message(
         created["conversation_id"],
         ConversationMessage(role="assistant", content="", parts=[part], tool_calls=[part]),
     )
-    return created["conversation_id"], approval_id, tool_call_id, part
-
-
-def test_aisdk_rejection_persists_and_does_not_execute(test_client, admin_headers):
-    conversation_id, approval_id, tool_call_id, part = _pending_approval(
-        test_client, admin_headers, "single_delete"
-    )
-    responded = {
-        **part,
-        "state": "approval-responded",
-        "approval": {"id": approval_id, "approved": False, "reason": "cancel"},
-    }
-    response = test_client.post(
-        "/api/agent/chat/aisdk",
-        headers=admin_headers,
-        json={
-            "id": conversation_id,
-            "messages": [{"id": "assistant", "role": "assistant", "parts": [responded]}],
-        },
-    )
-    assert response.status_code == 200
-    assert '"type": "tool-output-denied"' in response.text
-    assert get_approval_store().get(approval_id, conversation_id)["status"] == "rejected"
     history = test_client.get(
-        f"/api/agent/conversations/{conversation_id}", headers=admin_headers
+        f"/api/agent/conversations/{created['conversation_id']}", headers=admin_headers
     ).json()["data"]
     assert history["messages"][0]["parts"][0]["state"] == "output-denied"
     assert history["messages"][0]["parts"][0]["toolCallId"] == tool_call_id
-
-
-def test_aisdk_approved_action_is_consumed_once(test_client, admin_headers):
-    conversation_id, approval_id, _, part = _pending_approval(
-        test_client, admin_headers, "unsupported-test-action"
-    )
-    responded = {
-        **part,
-        "state": "approval-responded",
-        "approval": {"id": approval_id, "approved": True, "reason": "{}"},
-    }
-    body = {
-        "id": conversation_id,
-        "messages": [{"id": "assistant", "role": "assistant", "parts": [responded]}],
-    }
-    first = test_client.post("/api/agent/chat/aisdk", headers=admin_headers, json=body)
-    second = test_client.post("/api/agent/chat/aisdk", headers=admin_headers, json=body)
-    assert '"type": "tool-output-available"' in first.text
-    assert '"type": "tool-output-available"' not in second.text
-    assert get_approval_store().get(approval_id, conversation_id)["status"] == "consumed"
