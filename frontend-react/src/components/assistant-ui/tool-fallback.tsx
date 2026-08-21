@@ -2,12 +2,12 @@
 
 import { memo, useCallback, useRef, useState } from "react";
 import {
-  AlertCircleIcon,
-  CheckIcon,
-  ChevronDownIcon,
-  LoaderIcon,
-  XCircleIcon,
-} from "lucide-react";
+  CaretDown as ChevronDownIcon,
+  Check as CheckIcon,
+  SpinnerGap as LoaderIcon,
+  WarningCircle as AlertCircleIcon,
+  XCircle as XCircleIcon,
+} from "@phosphor-icons/react";
 import {
   useScrollLock,
   useToolCallElapsed,

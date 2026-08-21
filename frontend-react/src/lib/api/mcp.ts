@@ -1,5 +1,5 @@
 import client from "./client"
-import type { MCPServer, ApiResponse } from "@/types"
+import type { MCPConnection, MCPServer, ApiResponse } from "@/types"
 
 /**
  * MCP (Model Context Protocol) API module.
@@ -37,7 +37,7 @@ export const mcpApi = {
    * Connect to an MCP server.
    * May take up to 30s for server startup.
    */
-  connectServer(serverName: string): Promise<ApiResponse<any>> {
+  connectServer(serverName: string): Promise<ApiResponse<MCPConnection>> {
     return client.post(
       "/mcp/connect",
       { server_name: serverName },
@@ -48,7 +48,7 @@ export const mcpApi = {
   /**
    * List active MCP connections.
    */
-  listConnections(): Promise<ApiResponse<any[]>> {
+  listConnections(): Promise<ApiResponse<MCPConnection[]>> {
     return client.get("/mcp/connections")
   },
 

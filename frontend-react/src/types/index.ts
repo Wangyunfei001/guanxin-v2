@@ -209,6 +209,7 @@ export interface MCPConnection {
   server_name: string
   status: string
   tools?: MCPTool[]
+  error?: string
 }
 
 export interface MCPTool {

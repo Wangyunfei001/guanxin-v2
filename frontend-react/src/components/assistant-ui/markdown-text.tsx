@@ -10,7 +10,7 @@ import {
 } from "@assistant-ui/react-markdown";
 import remarkGfm from "remark-gfm";
 import { type FC, memo, useState } from "react";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { Check as CheckIcon, Copy as CopyIcon } from "@phosphor-icons/react";
 
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";

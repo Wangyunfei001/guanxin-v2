@@ -4,7 +4,7 @@ test("persistent workflow shows plan, collects input and survives refresh", asyn
   await page.goto("/login")
   await page.getByLabel("用户名").fill("admin")
   await page.getByLabel("密码").fill("admin123")
-  await page.getByRole("button", { name: "登录", exact: true }).click()
+  await page.getByRole("button", { name: "进入工作空间", exact: true }).click()
   await expect(page).toHaveURL(/\/assistant$/)
 
   const token = await page.evaluate(() => localStorage.getItem("access_token"))
@@ -44,12 +44,12 @@ test("persistent workflow shows plan, collects input and survives refresh", asyn
     await page.reload()
     await expect(page.getByRole("button", { name: "Playwright 工作流" })).toBeVisible()
 
-    const composer = page.getByLabel("Message input")
+    const composer = page.getByLabel("输入消息")
     await composer.fill("创建一个用户")
     const chatResponsePromise = page.waitForResponse((response) =>
       response.url().includes("/api/agent/chat/aisdk"),
     )
-    await page.getByRole("button", { name: "Send message" }).click()
+    await page.getByRole("button", { name: "发送消息" }).click()
     expect((await chatResponsePromise).status()).toBe(200)
 
     await expect(page.getByText("补充参数：创建用户")).toBeVisible()

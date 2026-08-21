@@ -24,16 +24,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!hydrated) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-muted-foreground">加载中...</div>
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+        <div className="text-sm text-muted-foreground">正在加载工作台</div>
       </div>
     )
   }
 
   if (!isLoggedIn) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-muted-foreground">正在跳转登录页...</div>
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+        <div className="text-sm text-muted-foreground">正在前往登录页</div>
       </div>
     )
   }

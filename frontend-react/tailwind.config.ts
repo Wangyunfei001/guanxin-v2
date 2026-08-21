@@ -16,6 +16,10 @@ const config: Config = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-geist-sans)", "PingFang SC", "Microsoft YaHei", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "SFMono-Regular", "Consolas", "monospace"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -55,6 +59,10 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      boxShadow: {
+        panel: "0 18px 60px -36px hsl(var(--shadow-color) / 0.55)",
+        float: "0 24px 72px -42px hsl(var(--shadow-color) / 0.72)",
       },
       keyframes: {
         "accordion-down": {

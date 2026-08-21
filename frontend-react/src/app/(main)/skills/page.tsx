@@ -1,23 +1,24 @@
 "use client"
 
+import { BracketsCurly, CheckCircle, Lightning, Play, Stack } from "@phosphor-icons/react"
 import * as React from "react"
-import { Zap, Play } from "lucide-react"
 import { toast } from "sonner"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+
+import { EmptyState, PageHeader, StatStrip } from "@/components/layout/page-header"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { useSkillStore } from "@/lib/stores/skill"
 import type { SkillMetadata } from "@/types"
 
@@ -37,10 +38,10 @@ export default function SkillsPage() {
   const showExecuteModal = (skill: SkillMetadata) => {
     setExecuteTarget(skill)
     const values: Record<string, any> = {}
-    skill.params.forEach((p) => {
-      if (p.default !== undefined) values[p.name] = p.default
-      if (p.name === "data") values[p.name] = "[1, 2, 3, 4, 5]"
-      if (p.name === "text") values[p.name] = ""
+    skill.params.forEach((param) => {
+      if (param.default !== undefined) values[param.name] = param.default
+      if (param.name === "data") values[param.name] = "[1, 2, 3, 4, 5]"
+      if (param.name === "text") values[param.name] = ""
     })
     setParamValues(values)
   }
@@ -50,24 +51,20 @@ export default function SkillsPage() {
     setExecuting(true)
     try {
       const params: Record<string, any> = {}
-      for (const [k, v] of Object.entries(paramValues)) {
-        if (typeof v === "string" && k === "data") {
+      for (const [key, value] of Object.entries(paramValues)) {
+        if (typeof value === "string" && key === "data") {
           try {
-            params[k] = JSON.parse(v)
+            params[key] = JSON.parse(value)
           } catch {
-            params[k] = v
+            params[key] = value
           }
-        } else {
-          params[k] = v
-        }
+        } else params[key] = value
       }
-      const res = await executeSkill(executeTarget.name, params)
-      if (res.code === 0) {
-        setResultText(JSON.stringify(res.data, null, 2))
+      const response = await executeSkill(executeTarget.name, params)
+      if (response.code === 0) {
+        setResultText(JSON.stringify(response.data, null, 2))
         setResultVisible(true)
-      } else {
-        toast.error(res.message || "执行失败")
-      }
+      } else toast.error(response.message || "执行失败")
     } catch {
       toast.error("执行失败")
     } finally {
@@ -76,71 +73,88 @@ export default function SkillsPage() {
     setExecuteTarget(null)
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {skills.map((skill) => (
-          <Card key={skill.name} className="flex flex-col">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-yellow-500" />
-                  <CardTitle className="text-sm">{skill.display_name}</CardTitle>
-                </div>
-                <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                  {skill.category}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="flex flex-1 flex-col">
-              <p className="mb-2 text-sm text-muted-foreground">{skill.description}</p>
-              {skill.tags && skill.tags.length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-1">
-                  {skill.tags.map((tag) => (
-                    <Badge key={tag} variant="outline" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              <Separator className="my-2" />
-              <Button
-                className="mt-auto w-full"
-                size="sm"
-                onClick={() => showExecuteModal(skill)}
-              >
-                <Play className="h-4 w-4" />
-                执行
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-        {skills.length === 0 && !loading && (
-          <div className="col-span-full py-8 text-center text-muted-foreground">
-            暂无技能
-          </div>
-        )}
-      </div>
+  const categories = new Set(skills.map((skill) => skill.category)).size
+  const paramsCount = skills.reduce((sum, skill) => sum + skill.params.length, 0)
 
-      {/* Execute Dialog */}
+  return (
+    <div className="mx-auto w-full max-w-[1280px] space-y-6 p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        eyebrow="CAPABILITIES"
+        title="Skills"
+        description="可组合的本地能力单元。每个 Skill 都有明确输入、输出和服务端权限边界。"
+      />
+
+      <StatStrip
+        items={[
+          { label: "可用 Skills", value: skills.length, icon: Lightning, tone: "accent" },
+          { label: "能力分类", value: categories, icon: Stack },
+          { label: "输入参数", value: paramsCount, icon: BracketsCurly },
+          { label: "运行状态", value: loading ? "同步中" : "正常", icon: CheckCircle },
+        ]}
+      />
+
+      <Card className="overflow-hidden">
+        {skills.length === 0 && !loading ? (
+          <EmptyState
+            icon={Lightning}
+            title="暂无可用 Skill"
+            description="服务端还没有向当前用户开放可执行能力。"
+          />
+        ) : (
+          <CardContent className="divide-y p-0">
+            {skills.map((skill, index) => (
+              <article
+                key={skill.name}
+                className="group grid gap-4 p-4 transition-colors hover:bg-muted/25 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"
+              >
+                <div className="flex size-11 items-center justify-center rounded-[13px] border bg-muted/35 text-primary">
+                  <Lightning size={20} weight={index === 0 ? "fill" : "regular"} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold">{skill.display_name}</h3>
+                    <Badge variant="outline" className="text-muted-foreground">{skill.category}</Badge>
+                    <Badge variant="outline" className="border-primary/15 bg-primary/8 text-primary">
+                      {skill.status || "available"}
+                    </Badge>
+                  </div>
+                  <p className="mt-1.5 max-w-3xl text-xs leading-5 text-muted-foreground">
+                    {skill.description}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 font-mono text-[10px] text-muted-foreground">{skill.name}</span>
+                    {skill.tags?.map((tag) => (
+                      <span key={tag} className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => showExecuteModal(skill)}>
+                  <Play size={14} weight="fill" />
+                  试运行
+                </Button>
+              </article>
+            ))}
+          </CardContent>
+        )}
+      </Card>
+
       <Dialog open={!!executeTarget} onOpenChange={(open) => !open && setExecuteTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              执行技能: {executeTarget?.display_name}
-            </DialogTitle>
+            <p className="text-[11px] font-medium tracking-[0.1em] text-primary">SKILL RUNNER</p>
+            <DialogTitle>{executeTarget?.display_name}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {executeTarget?.params.map((param) => (
-              <div key={param.name} className="space-y-1">
-                <Label className="text-xs">
-                  {param.label || param.name}
-                </Label>
+              <div key={param.name} className="space-y-1.5">
+                <Label className="text-xs">{param.label || param.name}</Label>
                 {param.type === "string" && param.name === "text" && (
                   <Textarea
                     value={paramValues[param.name] || ""}
-                    onChange={(e) =>
-                      setParamValues((prev) => ({ ...prev, [param.name]: e.target.value }))
+                    onChange={(event) =>
+                      setParamValues((current) => ({ ...current, [param.name]: event.target.value }))
                     }
                     rows={4}
                     placeholder={param.description}
@@ -149,8 +163,8 @@ export default function SkillsPage() {
                 {param.type === "string" && param.name !== "text" && (
                   <Input
                     value={paramValues[param.name] || ""}
-                    onChange={(e) =>
-                      setParamValues((prev) => ({ ...prev, [param.name]: e.target.value }))
+                    onChange={(event) =>
+                      setParamValues((current) => ({ ...current, [param.name]: event.target.value }))
                     }
                     placeholder={param.description}
                   />
@@ -159,10 +173,10 @@ export default function SkillsPage() {
                   <Input
                     type="number"
                     value={paramValues[param.name] ?? ""}
-                    onChange={(e) =>
-                      setParamValues((prev) => ({
-                        ...prev,
-                        [param.name]: parseFloat(e.target.value) || 0,
+                    onChange={(event) =>
+                      setParamValues((current) => ({
+                        ...current,
+                        [param.name]: parseFloat(event.target.value) || 0,
                       }))
                     }
                     placeholder={param.description}
@@ -172,41 +186,38 @@ export default function SkillsPage() {
                   <Switch
                     checked={!!paramValues[param.name]}
                     onCheckedChange={(checked) =>
-                      setParamValues((prev) => ({ ...prev, [param.name]: checked }))
+                      setParamValues((current) => ({ ...current, [param.name]: checked }))
                     }
                   />
                 )}
-                {!["string", "number", "boolean"].includes(param.type) && (
+                {!['string', 'number', 'boolean'].includes(param.type) && (
                   <Input
                     value={paramValues[param.name] || ""}
-                    onChange={(e) =>
-                      setParamValues((prev) => ({ ...prev, [param.name]: e.target.value }))
+                    onChange={(event) =>
+                      setParamValues((current) => ({ ...current, [param.name]: event.target.value }))
                     }
                     placeholder={param.description}
                   />
                 )}
-                <p className="text-xs text-muted-foreground">{param.description}</p>
+                <p className="text-[11px] leading-5 text-muted-foreground">{param.description}</p>
               </div>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setExecuteTarget(null)}>
-              取消
-            </Button>
-            <Button onClick={handleExecute} disabled={executing}>
-              {executing ? "执行中..." : "执行"}
+            <Button variant="outline" onClick={() => setExecuteTarget(null)}>取消</Button>
+            <Button onClick={() => void handleExecute()} disabled={executing}>
+              {executing ? "执行中" : "执行 Skill"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Result Dialog */}
       <Dialog open={resultVisible} onOpenChange={setResultVisible}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>执行结果</DialogTitle>
           </DialogHeader>
-          <pre className="max-h-96 overflow-auto rounded-md bg-gray-100 p-4 text-xs">
+          <pre className="max-h-96 overflow-auto rounded-[12px] border bg-muted/45 p-4 font-mono text-xs leading-5">
             {resultText}
           </pre>
         </DialogContent>

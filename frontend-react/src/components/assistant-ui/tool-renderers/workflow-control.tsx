@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, type FC } from "react"
-import { AlertTriangle, ClipboardPenLine } from "lucide-react"
+import { ClipboardText as ClipboardPenLine, Warning as AlertTriangle } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"

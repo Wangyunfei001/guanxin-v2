@@ -11,7 +11,7 @@ import {
   useState,
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { BrainIcon, ChevronDownIcon } from "lucide-react";
+import { Brain as BrainIcon, CaretDown as ChevronDownIcon } from "@phosphor-icons/react";
 import {
   useScrollLock,
   useAuiState,

@@ -29,6 +29,7 @@ import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { A2UIRenderer } from "@/components/a2ui/A2UIRenderer";
+import { BrandMark } from "@/components/brand/brand-mark";
 import {
   ActionBarMorePrimitive,
   ActionBarPrimitive,
@@ -47,19 +48,19 @@ import {
   useAssistantDataUI,
 } from "@assistant-ui/react";
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  CheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CopyIcon,
-  DownloadIcon,
-  MicIcon,
-  MoreHorizontalIcon,
-  PencilIcon,
-  RefreshCwIcon,
-  SquareIcon,
-} from "lucide-react";
+  ArrowClockwise as RefreshCwIcon,
+  ArrowDown as ArrowDownIcon,
+  ArrowUp as ArrowUpIcon,
+  CaretLeft as ChevronLeftIcon,
+  CaretRight as ChevronRightIcon,
+  Check as CheckIcon,
+  Copy as CopyIcon,
+  DotsThree as MoreHorizontalIcon,
+  DownloadSimple as DownloadIcon,
+  Microphone as MicIcon,
+  PencilSimple as PencilIcon,
+  Square as SquareIcon,
+} from "@phosphor-icons/react";
 import {
   createContext,
   useContext,
@@ -130,21 +131,21 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
     <ThreadPrimitive.Root
       className="aui-root aui-thread-root bg-background @container flex h-full flex-col"
       style={{
-        ["--thread-max-width" as string]: "44rem",
+        ["--thread-max-width" as string]: "49rem",
         ["--composer-bg" as string]:
-          "color-mix(in oklab, var(--color-muted) 30%, var(--color-background))",
-        ["--composer-radius" as string]: "1.5rem",
+          "color-mix(in oklab, hsl(var(--muted)) 54%, hsl(var(--background)))",
+        ["--composer-radius" as string]: "1rem",
         ["--composer-padding" as string]: "8px",
       }}
     >
       <ThreadPrimitive.Viewport
         turnAnchor="top"
         data-slot="aui_thread-viewport"
-        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth"
+        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth [scrollbar-gutter:stable]"
       >
         <div
           className={cn(
-            "mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4",
+            "mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-14 sm:px-7",
             isEmpty && "justify-center",
           )}
         >
@@ -163,9 +164,9 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 
           <ThreadPrimitive.ViewportFooter
             className={cn(
-              "aui-thread-viewport-footer bg-background flex flex-col gap-4 overflow-visible pb-4 md:pb-6",
+              "aui-thread-viewport-footer flex flex-col gap-3 overflow-visible pb-4 md:pb-6",
               !isEmpty &&
-                "sticky bottom-0 mt-auto rounded-t-(--composer-radius)",
+                "sticky bottom-0 mt-auto rounded-t-(--composer-radius) bg-gradient-to-t from-background via-background to-background/0 pt-8",
             )}
           >
             <ThreadScrollToBottom />
@@ -196,9 +197,9 @@ const ThreadScrollToBottom: FC = () => {
   return (
     <ThreadPrimitive.ScrollToBottom asChild>
       <TooltipIconButton
-        tooltip="Scroll to bottom"
+        tooltip="回到最新消息"
         variant="outline"
-        className="aui-thread-scroll-to-bottom dark:border-border dark:bg-background dark:hover:bg-accent absolute -top-12 z-10 self-center rounded-full p-4 disabled:invisible"
+        className="aui-thread-scroll-to-bottom absolute -top-10 z-10 size-9 self-center rounded-full border-border/70 bg-background/90 p-2 shadow-panel backdrop-blur disabled:invisible"
       >
         <ArrowDownIcon />
       </TooltipIconButton>
@@ -208,10 +209,17 @@ const ThreadScrollToBottom: FC = () => {
 
 const ThreadWelcome: FC = () => {
   return (
-    <div className="aui-thread-welcome-root mb-6 flex flex-col items-center px-4 text-center">
-      <h1 className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-2xl font-semibold duration-200">
-        How can I help you today?
+    <div className="aui-thread-welcome-root mb-8 flex flex-col items-center px-4 text-center">
+      <div className="mb-7 flex size-16 items-center justify-center rounded-[20px] border border-primary/20 bg-primary/8 shadow-[0_18px_60px_-28px_hsl(var(--primary)/0.65)]">
+        <BrandMark className="scale-125 text-primary" />
+      </div>
+      <p className="text-[11px] font-medium tracking-[0.16em] text-primary">观心助理</p>
+      <h1 className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in mt-3 fill-mode-both text-2xl font-semibold tracking-[-0.035em] duration-200 sm:text-[30px]">
+        从问题出发，看见完整执行过程
       </h1>
+      <p className="mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
+        检索知识、调用工具、分析数据。每一步都有依据，也可以随时介入。
+      </p>
     </div>
   );
 };
@@ -232,7 +240,7 @@ const ThreadSuggestionItem: FC = () => {
       <SuggestionPrimitive.Trigger send asChild>
         <Button
           variant="ghost"
-          className="aui-thread-welcome-suggestion text-foreground hover:bg-muted border-border/60 h-auto gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-normal whitespace-nowrap transition-colors"
+          className="aui-thread-welcome-suggestion h-auto gap-1.5 rounded-[12px] border border-border/70 bg-background/70 px-3.5 py-2 text-sm font-normal whitespace-nowrap text-foreground shadow-panel transition-colors hover:border-primary/25 hover:bg-primary/5"
         >
           <SuggestionPrimitive.Title className="aui-thread-welcome-suggestion-text-1" />
           <SuggestionPrimitive.Description className="aui-thread-welcome-suggestion-text-2 empty:hidden" />
@@ -253,12 +261,12 @@ const Composer: FC = () => {
         >
           <ComposerAttachments />
           <ComposerPrimitive.Input
-            placeholder={hasActiveWorkflow ? "请先处理或取消当前工作流" : "Send a message..."}
+            placeholder={hasActiveWorkflow ? "请先处理或取消当前工作流" : "描述任务，或直接问一个问题"}
             className="aui-composer-input caret-primary placeholder:text-muted-foreground/80 max-h-32 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base outline-none"
             rows={1}
             autoFocus
             enterKeyHint="send"
-            aria-label="Message input"
+            aria-label="输入消息"
             disabled={hasActiveWorkflow}
           />
           <ComposerAction disabled={hasActiveWorkflow} />
@@ -277,13 +285,13 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
           <AuiIf condition={(s) => s.composer.dictation == null}>
             <ComposerPrimitive.Dictate asChild>
               <TooltipIconButton
-                tooltip="Voice input"
+                tooltip="语音输入"
                 side="bottom"
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="aui-composer-dictate size-7 rounded-full"
-                aria-label="Start voice input"
+                aria-label="开始语音输入"
               >
                 <MicIcon className="aui-composer-dictate-icon size-4" />
               </TooltipIconButton>
@@ -292,13 +300,13 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
           <AuiIf condition={(s) => s.composer.dictation != null}>
             <ComposerPrimitive.StopDictation asChild>
               <TooltipIconButton
-                tooltip="Stop dictation"
+                tooltip="停止语音输入"
                 side="bottom"
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="aui-composer-stop-dictation text-destructive size-7 rounded-full"
-                aria-label="Stop voice input"
+                aria-label="停止语音输入"
               >
                 <SquareIcon className="aui-composer-stop-dictation-icon size-3.5 animate-pulse fill-current" />
               </TooltipIconButton>
@@ -308,13 +316,13 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
         <AuiIf condition={(s) => !s.thread.isRunning}>
           <ComposerPrimitive.Send asChild>
             <TooltipIconButton
-              tooltip="Send message"
+              tooltip="发送消息"
               side="bottom"
               type="button"
               variant="default"
               size="icon"
               className="aui-composer-send size-7 rounded-full"
-              aria-label="Send message"
+              aria-label="发送消息"
               disabled={disabled}
             >
               <ArrowUpIcon className="aui-composer-send-icon size-4.5" />
@@ -328,7 +336,7 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
               variant="default"
               size="icon"
               className="aui-composer-cancel size-7 rounded-full"
-              aria-label="Stop generating"
+              aria-label="停止生成"
             >
               <SquareIcon className="aui-composer-cancel-icon size-3.5 fill-current" />
             </Button>
@@ -464,7 +472,7 @@ const AssistantActionBar: FC = () => {
       className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 -ms-1 flex gap-1 duration-200"
     >
       <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip="Copy">
+        <TooltipIconButton tooltip="复制">
           <AuiIf condition={(s) => s.message.isCopied}>
             <CheckIcon className="animate-in zoom-in-50 fade-in duration-200 ease-out" />
           </AuiIf>
@@ -474,14 +482,14 @@ const AssistantActionBar: FC = () => {
         </TooltipIconButton>
       </ActionBarPrimitive.Copy>
       <ActionBarPrimitive.Reload asChild>
-        <TooltipIconButton tooltip="Refresh">
+        <TooltipIconButton tooltip="重新生成">
           <RefreshCwIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
       <ActionBarMorePrimitive.Root>
         <ActionBarMorePrimitive.Trigger asChild>
           <TooltipIconButton
-            tooltip="More"
+            tooltip="更多"
             className="data-[state=open]:bg-accent"
           >
             <MoreHorizontalIcon />
@@ -496,7 +504,7 @@ const AssistantActionBar: FC = () => {
           <ActionBarPrimitive.ExportMarkdown asChild>
             <ActionBarMorePrimitive.Item className="aui-action-bar-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none">
               <DownloadIcon className="size-4" />
-              Export as Markdown
+              导出为 Markdown
             </ActionBarMorePrimitive.Item>
           </ActionBarPrimitive.ExportMarkdown>
         </ActionBarMorePrimitive.Content>
@@ -515,7 +523,7 @@ const UserMessage: FC = () => {
       <UserMessageAttachments />
 
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
-        <div className="aui-user-message-content peer bg-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
+        <div className="aui-user-message-content peer rounded-[14px] border border-border/60 bg-muted/65 px-4 py-2.5 text-foreground shadow-panel wrap-break-word empty:hidden">
           <MessagePrimitive.Parts />
         </div>
         <div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
@@ -539,7 +547,7 @@ const UserActionBar: FC = () => {
       className="aui-user-action-bar-root flex flex-col items-end"
     >
       <ActionBarPrimitive.Edit asChild>
-        <TooltipIconButton tooltip="Edit" className="aui-user-action-edit">
+        <TooltipIconButton tooltip="编辑" className="aui-user-action-edit">
           <PencilIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Edit>
@@ -593,7 +601,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
       {...rest}
     >
       <BranchPickerPrimitive.Previous asChild>
-        <TooltipIconButton tooltip="Previous">
+        <TooltipIconButton tooltip="上一条">
           <ChevronLeftIcon />
         </TooltipIconButton>
       </BranchPickerPrimitive.Previous>
@@ -601,7 +609,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
         <BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count />
       </span>
       <BranchPickerPrimitive.Next asChild>
-        <TooltipIconButton tooltip="Next">
+        <TooltipIconButton tooltip="下一条">
           <ChevronRightIcon />
         </TooltipIconButton>
       </BranchPickerPrimitive.Next>

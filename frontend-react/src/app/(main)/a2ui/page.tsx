@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
+import { BracketsCurly, Eye, Layout, Sparkle } from "@phosphor-icons/react"
 import { toast } from "sonner"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PageHeader, StatStrip } from "@/components/layout/page-header"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -159,92 +160,110 @@ export default function A2UIPreviewPage() {
   }
 
   return (
-    <div className="grid grid-cols-12 gap-4">
-      {/* Left: Component type + Templates */}
-      <div className="col-span-3 space-y-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">组件类型</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RadioGroup value={selectedType} onValueChange={onTypeChange}>
-              {catalog.map((c) => (
-                <div key={c.component_type} className="flex items-center gap-2 py-1">
-                  <RadioGroupItem value={c.component_type} id={`type-${c.component_type}`} />
-                  <Label htmlFor={`type-${c.component_type}`} className="text-sm font-normal cursor-pointer">
-                    {c.display_name || c.component_type}
+    <div className="mx-auto w-full max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        eyebrow="GENERATIVE UI"
+        title="A2UI 工作台"
+        description="选择组件、编辑 Schema，并在真实主题环境中验证 Agent 生成的结构化界面。"
+      />
+
+      <StatStrip
+        items={[
+          { label: "组件类型", value: catalog.length, icon: Layout, tone: "accent" },
+          { label: "预设模板", value: templates.length, icon: Sparkle },
+          { label: "当前组件", value: selectedType || "—", icon: Eye },
+          { label: "协议", value: "schema", icon: BracketsCurly },
+        ]}
+      />
+
+      <div className="grid min-h-[660px] overflow-hidden rounded-[18px] border bg-card shadow-panel lg:grid-cols-[220px_minmax(360px,1fr)_300px] xl:grid-cols-[240px_minmax(420px,1fr)_340px]">
+        <aside className="border-b bg-muted/20 lg:border-b-0 lg:border-r">
+          <div className="border-b px-4 py-4">
+            <p className="text-sm font-semibold">组件与模板</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">选择一个渲染起点</p>
+          </div>
+          <div className="space-y-6 p-3">
+            <section>
+              <p className="px-2 pb-2 text-[10px] font-medium tracking-[0.1em] text-muted-foreground">COMPONENTS</p>
+              <RadioGroup value={selectedType} onValueChange={onTypeChange} className="space-y-1">
+                {catalog.map((component) => (
+                  <Label
+                    key={component.component_type}
+                    htmlFor={`type-${component.component_type}`}
+                    className="flex cursor-pointer items-center gap-3 rounded-[10px] px-2.5 py-2.5 text-xs font-normal transition-colors hover:bg-muted data-[selected=true]:bg-primary/8"
+                    data-selected={selectedType === component.component_type}
+                  >
+                    <RadioGroupItem value={component.component_type} id={`type-${component.component_type}`} />
+                    <span className="min-w-0 flex-1 truncate">{component.display_name || component.component_type}</span>
                   </Label>
-                </div>
-              ))}
-              {catalog.length === 0 && (
-                <p className="text-sm text-muted-foreground">加载中...</p>
-              )}
-            </RadioGroup>
-          </CardContent>
-        </Card>
+                ))}
+                {catalog.length === 0 && <p className="px-2 py-4 text-xs text-muted-foreground">正在读取目录</p>}
+              </RadioGroup>
+            </section>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">预设模板</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1">
-              {templates.map((tpl) => (
-                <div
-                  key={tpl.name}
-                  className="cursor-pointer rounded-md border p-2 hover:bg-accent"
-                  onClick={() => loadTemplate(tpl.name)}
-                >
-                  <div className="text-sm font-medium">{tpl.name}</div>
-                  <div className="text-xs text-muted-foreground">{tpl.description}</div>
-                </div>
-              ))}
-              {templates.length === 0 && (
-                <p className="text-sm text-muted-foreground">加载中...</p>
-              )}
+            <section>
+              <p className="px-2 pb-2 text-[10px] font-medium tracking-[0.1em] text-muted-foreground">TEMPLATES</p>
+              <div className="space-y-1">
+                {templates.map((template) => (
+                  <button
+                    key={template.name}
+                    className="w-full rounded-[10px] px-2.5 py-2.5 text-left transition-colors hover:bg-muted"
+                    onClick={() => void loadTemplate(template.name)}
+                  >
+                    <span className="block truncate text-xs font-medium">{template.name}</span>
+                    <span className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{template.description}</span>
+                  </button>
+                ))}
+                {templates.length === 0 && <p className="px-2 py-4 text-xs text-muted-foreground">正在读取模板</p>}
+              </div>
+            </section>
+          </div>
+        </aside>
+
+        <main className="flex min-w-0 flex-col border-b lg:border-b-0 lg:border-r">
+          <div className="flex h-[65px] items-center justify-between border-b px-5">
+            <div>
+              <p className="text-sm font-semibold">实时预览</p>
+              <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{selectedType || "NO COMPONENT"}</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Center: Preview */}
-      <div className="col-span-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">实时预览</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="min-h-[400px] rounded-md bg-gray-50 p-4">
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span className="size-1.5 rounded-full bg-primary" />
+              LIVE
+            </div>
+          </div>
+          <div className="relative flex flex-1 items-start justify-center overflow-auto bg-[radial-gradient(circle_at_50%_0%,hsl(var(--primary)/0.07),transparent_42%)] p-5 sm:p-8">
+            <div className="w-full max-w-2xl rounded-[16px] border border-dashed border-border/80 bg-background/80 p-4 shadow-panel backdrop-blur sm:p-6">
               {currentSchema ? (
                 <A2UIRenderer schema={currentSchema} />
               ) : (
-                <div className="flex h-64 items-center justify-center text-muted-foreground">
-                  选择组件类型或模板开始预览
+                <div className="flex min-h-80 flex-col items-center justify-center text-center">
+                  <Eye size={28} className="text-muted-foreground/45" />
+                  <p className="mt-3 text-sm font-medium">等待 Schema</p>
+                  <p className="mt-1 text-xs text-muted-foreground">选择组件类型或模板开始预览</p>
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </main>
 
-      {/* Right: JSON editor */}
-      <div className="col-span-3">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Schema JSON</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <aside className="flex min-w-0 flex-col bg-[#0d1311] text-[#edf4f1]">
+          <div className="flex h-[65px] items-center justify-between border-b border-white/10 px-4">
+            <div>
+              <p className="text-sm font-semibold">Schema JSON</p>
+              <p className="mt-0.5 text-[10px] text-[#9eada7]">UTF-8 · A2UI</p>
+            </div>
+            <BracketsCurly size={18} className="text-primary" />
+          </div>
+          <div className="flex flex-1 flex-col gap-3 p-3">
             <Textarea
               value={schemaJson}
-              onChange={(e) => setSchemaJson(e.target.value)}
-              rows={20}
-              className="font-mono text-xs"
+              onChange={(event) => setSchemaJson(event.target.value)}
+              spellCheck={false}
+              className="min-h-[500px] flex-1 resize-none border-white/10 bg-black/15 font-mono text-[11px] leading-5 text-[#dbe7e2] focus-visible:border-primary/40"
             />
-            <Button className="w-full" onClick={applyJson}>
-              应用
-            </Button>
-          </CardContent>
-        </Card>
+            <Button className="w-full" onClick={applyJson}>应用 Schema</Button>
+          </div>
+        </aside>
       </div>
     </div>
   )

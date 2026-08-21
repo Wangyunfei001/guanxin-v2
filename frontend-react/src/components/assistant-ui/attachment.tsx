@@ -2,12 +2,12 @@
 
 import { type PropsWithChildren, useEffect, useState, type FC } from "react";
 import {
-  XIcon,
-  PlusIcon,
   FileText,
-  Loader2Icon,
-  AlertCircleIcon,
-} from "lucide-react";
+  Plus as PlusIcon,
+  SpinnerGap as Loader2Icon,
+  WarningCircle as AlertCircleIcon,
+  X as XIcon,
+} from "@phosphor-icons/react";
 import {
   AttachmentPrimitive,
   ComposerPrimitive,

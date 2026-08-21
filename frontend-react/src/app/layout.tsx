@@ -1,4 +1,7 @@
 import type { Metadata } from "next"
+import { GeistMono } from "geist/font/mono"
+import { GeistSans } from "geist/font/sans"
+import { ThemeProvider } from "@/components/theme/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
 
@@ -13,10 +16,16 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
-      <body className="antialiased">
-        {children}
-        <Toaster position="top-center" richColors />
+    <html
+      lang="zh-CN"
+      suppressHydrationWarning
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+    >
+      <body className="min-h-[100dvh] antialiased">
+        <ThemeProvider>
+          {children}
+          <Toaster position="top-center" richColors />
+        </ThemeProvider>
       </body>
     </html>
   )

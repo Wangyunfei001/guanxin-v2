@@ -42,13 +42,13 @@ import {
 import { cn } from "@/lib/utils";
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from "ai";
 import {
-  CornerDownLeftIcon,
-  ImageIcon,
+  ArrowBendDownLeft as CornerDownLeftIcon,
+  Image as ImageIcon,
   Monitor,
-  PlusIcon,
-  SquareIcon,
-  XIcon,
-} from "lucide-react";
+  Plus as PlusIcon,
+  Square as SquareIcon,
+  X as XIcon,
+} from "@phosphor-icons/react";
 import { nanoid } from "nanoid";
 import type {
   ChangeEvent,

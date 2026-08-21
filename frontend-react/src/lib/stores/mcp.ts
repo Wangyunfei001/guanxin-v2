@@ -2,16 +2,16 @@
 
 import { create } from "zustand"
 import { mcpApi } from "@/lib/api/mcp"
-import type { MCPServer, ApiResponse } from "@/types"
+import type { MCPConnection, MCPServer, ApiResponse } from "@/types"
 
 interface McpState {
   servers: MCPServer[]
-  connections: any[]
+  connections: MCPConnection[]
   loading: boolean
 
   loadServers: () => Promise<void>
   loadConnections: () => Promise<void>
-  connectServer: (name: string) => Promise<ApiResponse<any>>
+  connectServer: (name: string) => Promise<ApiResponse<MCPConnection>>
   callTool: (
     serverName: string,
     toolName: string,
