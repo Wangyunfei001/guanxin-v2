@@ -49,6 +49,15 @@ async def lifespan(app: FastAPI):
     if recovered:
         logger.warning("Recovered %s interrupted workflow step(s)", recovered)
 
+    from app.services.research_store import get_research_store
+
+    recovered_research = get_research_store().recover_inflight()
+    if recovered_research:
+        logger.warning(
+            "Marked %s interrupted research run(s) for manual resume",
+            recovered_research,
+        )
+
     # 3. 初始化 ChromaDB
     logger.info("Initializing ChromaDB...")
     get_chroma_client()

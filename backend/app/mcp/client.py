@@ -3,10 +3,8 @@
 负责与外部 MCP Server 建立连接、调用工具。
 """
 
-import asyncio
+import json
 from typing import Any, Dict, List, Optional
-
-from app.config import settings
 
 
 class MCPClient:
@@ -50,14 +48,23 @@ class MCPClient:
 
                     # 获取工具列表
                     tools_result = await session.list_tools()
-                    tools = [
-                        {
-                            "name": t.name,
-                            "description": t.description,
-                            "input_schema": t.inputSchema if hasattr(t, "inputSchema") else {},
-                        }
-                        for t in tools_result.tools
-                    ]
+                    tools = []
+                    for item in tools_result.tools:
+                        annotations = getattr(item, "annotations", None)
+                        tools.append(
+                            {
+                                "name": item.name,
+                                "description": item.description or "",
+                                "input_schema": getattr(item, "inputSchema", {}) or {},
+                                "output_schema": getattr(item, "outputSchema", None),
+                                "annotations": (
+                                    annotations.model_dump(exclude_none=True)
+                                    if annotations is not None
+                                    else {}
+                                ),
+                                "metadata": getattr(item, "meta", None) or {},
+                            }
+                        )
 
                     self._connections[server_name] = {
                         "command": command,
@@ -86,6 +93,32 @@ class MCPClient:
                 "error": str(e),
             }
 
+    async def ensure_available(self, server_name: str) -> dict:
+        """Discover a registered server on demand after process restarts."""
+        current = self._connections.get(server_name)
+        if current and current.get("status") == "connected":
+            return {
+                "server_name": server_name,
+                "status": "connected",
+                "tools": current.get("tools", []),
+            }
+
+        from app.mcp.server import get_mcp_server_manager
+
+        config = get_mcp_server_manager().get_server(server_name)
+        if config is None:
+            return {
+                "server_name": server_name,
+                "status": "error",
+                "error": "服务器配置未找到",
+            }
+        return await self.connect(
+            server_name=config["name"],
+            command=config["command"],
+            args=config["args"],
+            env=config.get("env"),
+        )
+
     async def call_tool(
         self,
         server_name: str,
@@ -104,6 +137,14 @@ class MCPClient:
         """
         conn = self._connections.get(server_name)
         if not conn:
+            ensured = await self.ensure_available(server_name)
+            if ensured.get("status") != "connected":
+                return {
+                    "success": False,
+                    "error": ensured.get("error") or f"服务器 {server_name} 未连接",
+                }
+            conn = self._connections.get(server_name)
+        if not conn:
             return {"success": False, "error": f"服务器 {server_name} 未连接"}
 
         try:
@@ -120,10 +161,24 @@ class MCPClient:
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     result = await session.call_tool(tool_name, arguments)
+                    structured = getattr(result, "structuredContent", None)
+                    output: Any = structured
+                    if output is None:
+                        texts = [
+                            getattr(item, "text", "")
+                            for item in (result.content or [])
+                            if getattr(item, "text", "")
+                        ]
+                        joined = "\n".join(texts)
+                        try:
+                            output = json.loads(joined) if joined else ""
+                        except json.JSONDecodeError:
+                            output = joined
+                    is_error = bool(getattr(result, "isError", False))
                     return {
                         "success": True,
-                        "output": str(result.content) if result.content else "",
-                        "is_error": getattr(result, "isError", False),
+                        "output": output,
+                        "is_error": is_error,
                     }
 
         except Exception as e:
@@ -173,6 +228,9 @@ class MCPClient:
                         "full_name": f"mcp__{server_name}__{tool_info['name']}",
                         "description": tool_info.get("description", ""),
                         "input_schema": tool_info.get("input_schema", {}),
+                        "output_schema": tool_info.get("output_schema"),
+                        "annotations": tool_info.get("annotations", {}),
+                        "metadata": tool_info.get("metadata", {}),
                     }
                 )
         return definitions

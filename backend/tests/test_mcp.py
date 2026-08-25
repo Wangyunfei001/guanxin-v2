@@ -130,7 +130,5 @@ class TestMCPConnections:
                 "arguments": {},
             },
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["code"] == 0
-        assert data["data"]["success"] is False
+        assert response.status_code == 403
+        assert response.json()["detail"] == "当前 Agent 未启用该 MCP Server"

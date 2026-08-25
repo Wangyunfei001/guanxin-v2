@@ -8,6 +8,7 @@ from app.api.a2ui import router as a2ui_router
 from app.api.auth import router as auth_router
 from app.api.knowledge import router as knowledge_router
 from app.api.mcp import router as mcp_router
+from app.api.research import router as research_router
 from app.api.skill import router as skill_router
 
 api_router = APIRouter(prefix="/api")
@@ -19,4 +20,5 @@ api_router.include_router(agent_router)
 api_router.include_router(aisdk_router)
 api_router.include_router(skill_router)
 api_router.include_router(mcp_router)
+api_router.include_router(research_router)
 api_router.include_router(a2ui_router)

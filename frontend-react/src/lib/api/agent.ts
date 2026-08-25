@@ -1,5 +1,5 @@
 import client from "./client"
-import type { Conversation, ConversationDetail, ApiResponse, AgentConfig, WorkflowData } from "@/types"
+import type { Conversation, ConversationDetail, ApiResponse, AgentConfig, ResearchData, WorkflowData } from "@/types"
 
 /**
  * Agent API module.
@@ -78,6 +78,18 @@ export const agentApi = {
       action,
       result_summary: resultSummary,
     })
+  },
+
+  getResearch(runId: string): Promise<ApiResponse<ResearchData>> {
+    return client.get(`/agent/research/${runId}`)
+  },
+
+  cancelResearch(runId: string): Promise<ApiResponse<ResearchData>> {
+    return client.post(`/agent/research/${runId}/cancel`)
+  },
+
+  resumeResearch(runId: string): Promise<ApiResponse<ResearchData>> {
+    return client.post(`/agent/research/${runId}/resume`)
   },
 
 }

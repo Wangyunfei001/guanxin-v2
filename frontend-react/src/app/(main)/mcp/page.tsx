@@ -5,6 +5,7 @@ import {
   CloudArrowUp,
   Plugs,
   Plus,
+  Robot,
   ShieldCheck,
   TerminalWindow,
   Trash,
@@ -30,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { mcpApi } from "@/lib/api/mcp"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useMcpStore } from "@/lib/stores/mcp"
+import type { MCPToolPolicy } from "@/types"
 
 export default function McpPage() {
   const mcpStore = useMcpStore()
@@ -91,13 +93,32 @@ export default function McpPage() {
     try {
       const response = await mcpStore.connectServer(name)
       if (response.code === 0 && response.data.status === "connected") {
-        toast.success(`连接成功，发现 ${response.data.tools?.length || 0} 个工具`)
-        mcpStore.loadConnections()
+        toast.success(`连接成功，发现 ${response.data.tools?.length || 0} 个工具。下一轮对话生效`)
+        await Promise.all([mcpStore.loadConnections(), mcpStore.loadServers()])
       } else toast.error(response.data?.error || "连接失败")
     } catch {
       toast.error("连接失败")
     } finally {
       setConnecting("")
+    }
+  }
+
+  const handlePolicy = async (
+    serverName: string,
+    toolName: string,
+    current: MCPToolPolicy | null | undefined,
+    effect: MCPToolPolicy["effect"],
+  ) => {
+    try {
+      await mcpApi.updateToolPolicy(serverName, toolName, {
+        enabled: current?.enabled ?? true,
+        effect,
+        approval_required: effect !== "read",
+      })
+      toast.success("工具策略已更新，下一轮对话生效")
+      await mcpStore.loadConnections()
+    } catch {
+      toast.error("工具策略更新失败")
     }
   }
 
@@ -189,7 +210,7 @@ export default function McpPage() {
               {mcpStore.servers.map((server) => {
                 const connected = mcpStore.connections.some(
                   (connection) => connection.server_name === server.name && connection.status === "connected",
-                )
+                ) || server.runtime_status === "connected"
                 return (
                   <article key={server.name} className="flex flex-col gap-4 p-4 transition-colors hover:bg-muted/25 sm:flex-row sm:items-center sm:px-5">
                     <div className="flex size-11 shrink-0 items-center justify-center rounded-[13px] border bg-muted/35 font-mono text-sm font-semibold text-primary">
@@ -203,6 +224,13 @@ export default function McpPage() {
                           className={connected ? "border-primary/15 bg-primary/10 text-primary" : "text-muted-foreground"}
                         >
                           {connected ? "已连接" : "未连接"}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={server.agent_enabled ? "border-sky-500/20 bg-sky-500/8 text-sky-600 dark:text-sky-400" : "text-muted-foreground"}
+                        >
+                          <Robot size={12} />
+                          {server.agent_enabled ? "Agent 已启用" : "Agent 未启用"}
                         </Badge>
                       </div>
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -265,11 +293,42 @@ export default function McpPage() {
                         {connection.tools?.length || 0} TOOLS
                       </span>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
+                    <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <Robot size={12} />
+                      {connection.agent_enabled ? "已装配到当前租户 Agent" : "尚未装配到当前租户 Agent"}
+                    </div>
+                    <div className="mt-3 space-y-2">
                       {connection.tools?.map((tool) => (
-                        <Badge key={tool.name} variant="outline" className="font-mono text-[10px]">
-                          {tool.name}
-                        </Badge>
+                        <div key={tool.name} className="rounded-[10px] border bg-background/70 p-2.5">
+                          <div className="flex items-center gap-2">
+                            <code className="min-w-0 flex-1 truncate font-mono text-[10px]">{tool.name}</code>
+                            {isAdmin ? (
+                              <Select
+                                value={tool.policy?.effect || "unknown"}
+                                onValueChange={(value) => void handlePolicy(
+                                  connection.server_name,
+                                  tool.name,
+                                  tool.policy,
+                                  value as MCPToolPolicy["effect"],
+                                )}
+                              >
+                                <SelectTrigger className="h-7 w-[88px] text-[10px]"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="read">只读</SelectItem>
+                                  <SelectItem value="write">写操作</SelectItem>
+                                  <SelectItem value="unknown">未知</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px]">
+                                {tool.policy?.effect === "read" ? "只读" : tool.policy?.effect === "write" ? "写操作" : "未知"}
+                              </Badge>
+                            )}
+                          </div>
+                          {tool.description && (
+                            <p className="mt-1.5 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{tool.description}</p>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>

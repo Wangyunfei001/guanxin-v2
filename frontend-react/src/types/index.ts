@@ -71,6 +71,19 @@ export interface AgentConfig {
   api_base: string
   tools_count: number
   skills_count: number
+  available_tool_specs: ToolSpec[]
+}
+
+export interface ToolSpec {
+  name: string
+  display_name: string
+  description: string
+  input_schema: Record<string, unknown>
+  source_type: "builtin" | "skill" | "mcp" | "provider"
+  source_name: string
+  effect: "read" | "write" | "unknown"
+  approval_required: boolean
+  enabled: boolean
 }
 
 // ============ Persistent Workflows ============
@@ -120,6 +133,7 @@ export interface WorkflowData {
 export type GuanxinDataParts = {
   workflow: WorkflowData
   a2ui: { schema: A2UISchema; toolCallId?: string }
+  research: ResearchData
 }
 
 export type GuanxinUIMessage = UIMessage<unknown, GuanxinDataParts>
@@ -203,6 +217,9 @@ export interface MCPServer {
   env: Record<string, string>
   description: string
   status: string
+  registered?: boolean
+  runtime_status?: string
+  agent_enabled?: boolean
 }
 
 export interface MCPConnection {
@@ -210,10 +227,81 @@ export interface MCPConnection {
   status: string
   tools?: MCPTool[]
   error?: string
+  agent_enabled?: boolean
 }
 
 export interface MCPTool {
   name: string
   description: string
-  inputSchema?: any
+  input_schema?: Record<string, unknown>
+  annotations?: Record<string, unknown>
+  policy?: MCPToolPolicy | null
+}
+
+export interface MCPToolPolicy {
+  tenant_id: string
+  server_name: string
+  tool_name: string
+  enabled: boolean
+  effect: "read" | "write" | "unknown"
+  approval_required: boolean
+}
+
+// ============ Deep Research ============
+export type ResearchStatus =
+  | "planning"
+  | "searching"
+  | "analyzing"
+  | "synthesizing"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "interrupted"
+
+export interface ResearchTask {
+  task_id: string
+  position: number
+  question: string
+  status: string
+  attempt_count: number
+  result_summary: string
+  error: string
+}
+
+export interface ResearchSource {
+  source_id: string
+  canonical_url: string
+  title: string
+  publisher: string
+  snippet: string
+  query: string
+  accessed_at: string
+}
+
+export interface ResearchData {
+  run_id: string
+  conversation_id: string
+  mode: "quick" | "deep"
+  status: ResearchStatus
+  goal: string
+  plan: { summary?: string; questions?: unknown[] }
+  budget: {
+    max_rounds: number
+    max_searches: number
+    max_sources: number
+    timeout_seconds: number
+  }
+  usage: {
+    search_actions?: number
+    tool_calls?: number
+    sources?: number
+    input_tokens?: number
+    output_tokens?: number
+  }
+  report: string
+  error: string
+  tasks: ResearchTask[]
+  sources: ResearchSource[]
+  created_at: string
+  updated_at: string
 }

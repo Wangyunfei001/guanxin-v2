@@ -83,7 +83,12 @@ def _workflow_response(run: dict) -> dict:
     }
 
 
-def _config_response(config: AgentConfig, user_role: str = "admin") -> dict:
+async def _config_response(
+    config: AgentConfig,
+    user_role: str = "admin",
+    *,
+    user_id: str = "system",
+) -> dict:
     registry = get_skill_registry()
     registry.register_all()
     skills = registry.list_metadata()
@@ -93,14 +98,23 @@ def _config_response(config: AgentConfig, user_role: str = "admin") -> dict:
     from app.mcp.server import get_mcp_server_manager
 
     servers = get_mcp_server_manager().list_servers()
+    from app.agent.tool_catalog import build_tool_catalog, serialize_tool_specs
+
+    catalog = await build_tool_catalog(
+        config,
+        tenant_id=config.tenant_id,
+        user_id=user_id,
+        user_role=user_role,
+    )
     data = config.to_dict()
     data.update({
-        "agent_mode": settings.agent_mode,
+        "agent_mode": "supervisor",
         "available_models": settings.available_models_list,
         "api_base": settings.openai_api_base,
-        "tools_count": 1 + len(skills),
+        "tools_count": len(catalog),
         "skills_count": len(skills),
-        "available_tools": ["kb_retrieval"],
+        "available_tools": ["kb_retrieval", "web_search", "deep_research"],
+        "available_tool_specs": serialize_tool_specs(catalog),
         "available_skills": skills,
         "available_mcp_servers": [server["name"] for server in servers],
     })
@@ -236,7 +250,7 @@ async def get_agent_config(user: User = Depends(get_current_user)):
     """获取当前租户持久化 Agent 配置。"""
     store = get_agent_config_store()
     config = store.get_or_create_default(user.tenant_id)
-    return success(_config_response(config, user.role))
+    return success(await _config_response(config, user.role, user_id=user.user_id))
 
 
 @router.put("/config")
@@ -245,7 +259,12 @@ async def update_agent_config(
     user: User = Depends(get_admin_user),
 ):
     """更新当前租户默认 Agent 配置（仅管理员）。"""
-    if request.model not in settings.available_models_list:
+    model_aliases = {
+        "deepseek-chat": "deepseek-v4-pro",
+        "deepseek-reasoner": "deepseek-v4-pro",
+    }
+    normalized_model = model_aliases.get(request.model, request.model)
+    if normalized_model not in settings.available_models_list:
         raise HTTPException(status_code=422, detail="模型不在可用列表中")
     if not 0 <= request.temperature <= 2:
         raise HTTPException(status_code=422, detail="temperature 必须在 0 到 2 之间")
@@ -257,7 +276,9 @@ async def update_agent_config(
     skill_names = {skill.name for skill in registry.list_skills()}
     if not set(request.enabled_skills).issubset(skill_names):
         raise HTTPException(status_code=422, detail="包含未知 Skill")
-    if not set(request.enabled_tools).issubset({"kb_retrieval"}):
+    if not set(request.enabled_tools).issubset(
+        {"kb_retrieval", "web_search", "deep_research"}
+    ):
         raise HTTPException(status_code=422, detail="包含未知内置工具")
 
     from app.mcp.server import get_mcp_server_manager
@@ -268,7 +289,7 @@ async def update_agent_config(
 
     store = get_agent_config_store()
     config = store.get_or_create_default(user.tenant_id)
-    config.model = request.model
+    config.model = normalized_model
     config.temperature = request.temperature
     config.max_tokens = request.max_tokens
     config.system_prompt = request.system_prompt
@@ -276,4 +297,4 @@ async def update_agent_config(
     config.enabled_skills = request.enabled_skills
     config.mcp_servers = request.mcp_servers
     store.save_config(config)
-    return success(_config_response(config, user.role))
+    return success(await _config_response(config, user.role, user_id=user.user_id))

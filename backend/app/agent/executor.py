@@ -16,6 +16,8 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.agent.graph import _create_llm, create_legacy_agent, create_state_graph_agent
 from app.agent.prompts import DEFAULT_SYSTEM_PROMPT
+from app.agent.supervisor import RouteDecision, decide_route
+from app.agent.tool_catalog import CatalogEntry, build_tool_catalog, runtime_tools
 from app.agent.tools import get_enabled_tools
 from app.config import settings
 from app.models.agent import ConversationMessage
@@ -112,6 +114,9 @@ async def execute_agent(
     model_name: str = "",
     temperature: float = 0.7,
     user_role: str = "user",
+    route_decision: RouteDecision | None = None,
+    catalog: list[CatalogEntry] | None = None,
+    research_mode: str = "auto",
 ) -> AsyncGenerator[str, None]:
     """执行 Agent 并流式返回结果。
 
@@ -126,31 +131,248 @@ async def execute_agent(
     model_name = config.model
     temperature = config.temperature
     max_tokens = config.max_tokens
-    enabled_tools = list(config.enabled_tools)
-    enabled_tools.extend(f"skill__{name}" for name in config.enabled_skills)
-
-    from app.mcp.client import get_mcp_client
-
-    for definition in get_mcp_client().get_tool_definitions():
-        if definition["server_name"] in config.mcp_servers:
-            enabled_tools.append(definition["full_name"])
-
     set_tenant_context(tenant_id, user_id, user_role)
 
+    catalog = catalog or await build_tool_catalog(
+        config,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        user_role=user_role,
+        conversation_id=conversation_id,
+    )
+    llm = _create_llm(model_name or settings.openai_model, temperature, max_tokens)
+    route_decision = route_decision or await decide_route(
+        user_message,
+        config,
+        catalog,
+        research_mode=research_mode,
+        llm=llm,
+    )
+
     if settings.agent_mode == "legacy":
+        enabled_tools = [entry.spec.name for entry in catalog if entry.tool is not None]
         async for msg in _execute_legacy(
             user_message, conversation_id, tenant_id, user_id,
             agent_id, prompt, enabled_tools, model_name, temperature, user_role,
             max_tokens,
         ):
             yield msg
-    else:
-        async for msg in _execute_state_graph(
-            user_message, conversation_id, tenant_id, user_id,
-            agent_id, prompt, enabled_tools, model_name, temperature, user_role,
-            max_tokens,
-        ):
-            yield msg
+        return
+
+    async for msg in _execute_unified(
+        user_message=user_message,
+        conversation_id=conversation_id,
+        tenant_id=tenant_id,
+        system_prompt=prompt,
+        llm=llm,
+        catalog=catalog,
+        decision=route_decision,
+    ):
+        yield msg
+
+
+def _message_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            str(item.get("text", ""))
+            for item in content
+            if isinstance(item, dict)
+            and item.get("type") in {"text", "output_text"}
+        )
+    return str(content or "")
+
+
+def _json_safe(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(exclude_none=True)
+    try:
+        json.dumps(value, ensure_ascii=False)
+        return value
+    except (TypeError, ValueError):
+        return str(value)
+
+
+async def _execute_unified(
+    *,
+    user_message: str,
+    conversation_id: str,
+    tenant_id: str,
+    system_prompt: str,
+    llm: Any,
+    catalog: list[CatalogEntry],
+    decision: RouteDecision,
+) -> AsyncGenerator[str, None]:
+    """Execute direct responses and the bounded read-only tool loop."""
+    messages = await _build_message_history(
+        user_message,
+        conversation_id,
+        tenant_id,
+        system_prompt,
+        include_system=True,
+    )
+    if llm is None:
+        full_response = ""
+        async for event in _mock_stream_response(user_message, system_prompt):
+            if '"type": "token"' in event:
+                full_response += json.loads(event[6:].strip()).get("content", "")
+                yield event
+        get_conversation_store().add_message(
+            conversation_id,
+            ConversationMessage(role="assistant", content=full_response),
+        )
+        yield _format_sse({"type": "done", "content": full_response})
+        return
+
+    if decision.route != "tool_loop":
+        full_response = ""
+        try:
+            async for chunk in llm.astream(messages):
+                text = _message_text(getattr(chunk, "content", ""))
+                if text:
+                    full_response += text
+                    yield _format_sse({"type": "token", "content": text})
+        except Exception as exc:
+            logger.exception("Direct Agent response failed")
+            yield _format_sse({"type": "error", "content": f"Agent 执行出错: {exc}"})
+            return
+        full_response = full_response or "（无输出）"
+        get_conversation_store().add_message(
+            conversation_id,
+            ConversationMessage(
+                role="assistant",
+                content=full_response,
+                parts=[{"type": "text", "text": full_response}],
+            ),
+        )
+        yield _format_sse({"type": "done", "content": full_response})
+        return
+
+    tools = runtime_tools(catalog, decision.candidate_tools)
+    tools_by_name = {tool.name: tool for tool in tools}
+    if not tools:
+        fallback = "当前请求需要的工具未启用或不可用。"
+        get_conversation_store().add_message(
+            conversation_id,
+            ConversationMessage(role="assistant", content=fallback),
+        )
+        yield _format_sse({"type": "token", "content": fallback})
+        yield _format_sse({"type": "done", "content": fallback})
+        return
+
+    from langchain_core.messages import ToolMessage
+
+    full_response = ""
+    tool_parts: list[dict[str, Any]] = []
+    a2ui_schemas: list[dict[str, Any]] = []
+    a2ui_parts: list[dict[str, Any]] = []
+    tool_calls_used = 0
+    transcript: list[Any] = list(messages)
+    try:
+        for round_index in range(4):
+            if round_index == 3:
+                bound = llm.bind_tools(tools, tool_choice="none")
+            elif round_index == 0 and len(tools) == 1:
+                bound = llm.bind_tools(tools, tool_choice=tools[0].name)
+            else:
+                bound = llm.bind_tools(tools, tool_choice="auto")
+            response = await bound.ainvoke(transcript)
+            transcript.append(response)
+            calls = list(getattr(response, "tool_calls", []) or [])
+            if not calls:
+                full_response = _message_text(getattr(response, "content", "")) or "（无输出）"
+                yield _format_sse({"type": "token", "content": full_response})
+                break
+
+            for call in calls:
+                if tool_calls_used >= 8:
+                    break
+                tool_name = str(call.get("name", ""))
+                tool = tools_by_name.get(tool_name)
+                if tool is None:
+                    continue
+                tool_call_id = str(call.get("id") or f"call_{uuid.uuid4().hex[:16]}")
+                tool_input = call.get("args") if isinstance(call.get("args"), dict) else {}
+                yield _format_sse(
+                    {
+                        "type": "tool_call",
+                        "tool_name": tool_name,
+                        "tool_input": json.dumps(tool_input, ensure_ascii=False),
+                        "tool_call_id": tool_call_id,
+                    }
+                )
+                status = "output-available"
+                try:
+                    output = await tool.ainvoke(tool_input)
+                except Exception as exc:
+                    output = {"error": str(exc)}
+                    status = "output-error"
+                safe_output = _json_safe(output)
+                output_text = json.dumps(safe_output, ensure_ascii=False)
+                yield _format_sse(
+                    {
+                        "type": "tool_result",
+                        "tool_name": tool_name,
+                        "tool_output": output_text,
+                        "tool_call_id": tool_call_id,
+                        "status": status,
+                    }
+                )
+                tool_parts.append(
+                    {
+                        "type": f"tool-{tool_name}",
+                        "toolCallId": tool_call_id,
+                        "state": status,
+                        "input": tool_input,
+                        "output": safe_output,
+                    }
+                )
+                transcript.append(ToolMessage(content=output_text, tool_call_id=tool_call_id))
+                tool_calls_used += 1
+                try:
+                    from app.a2ui.renderer import generate_for_tool_result
+
+                    schema = generate_for_tool_result(
+                        tool_name=tool_name,
+                        tool_input=tool_input,
+                        tool_output=output_text,
+                    )
+                    if schema:
+                        a2ui_schemas.append(schema)
+                        a2ui_parts.append(
+                            {
+                                "type": "data-a2ui",
+                                "data": {"schema": schema, "toolCallId": tool_call_id},
+                            }
+                        )
+                        yield _format_sse(
+                            {"type": "a2ui", "schema": schema, "tool_call_id": tool_call_id}
+                        )
+                except Exception:
+                    logger.debug("A2UI generation skipped", exc_info=True)
+        if not full_response:
+            full_response = "已达到工具调用预算，结果已保留在工具轨迹中。"
+            yield _format_sse({"type": "token", "content": full_response})
+    except Exception as exc:
+        logger.exception("Unified tool loop failed")
+        yield _format_sse({"type": "error", "content": f"Agent 执行出错: {exc}"})
+        return
+
+    parts: list[dict[str, Any]] = [*tool_parts, *a2ui_parts]
+    if full_response:
+        parts.append({"type": "text", "text": full_response})
+    get_conversation_store().add_message(
+        conversation_id,
+        ConversationMessage(
+            role="assistant",
+            content=full_response,
+            tool_calls=tool_parts,
+            a2ui_schemas=a2ui_schemas,
+            parts=parts,
+        ),
+    )
+    yield _format_sse({"type": "done", "content": full_response})
 
 
 async def _execute_legacy(

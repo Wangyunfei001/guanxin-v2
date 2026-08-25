@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test"
 
 const runId = `${process.pid}-${Date.now()}`
 const backendDirectory = path.resolve(__dirname, "../backend")
+const reuseExistingServer = !process.env.CI
 
 export default defineConfig({
   testDir: "./e2e",
@@ -26,7 +27,7 @@ export default defineConfig({
       cwd: backendDirectory,
       url: "http://127.0.0.1:8000/health",
       timeout: 120_000,
-      reuseExistingServer: false,
+      reuseExistingServer,
       env: {
         ...process.env,
         APP_ENV: "test",
@@ -44,7 +45,7 @@ export default defineConfig({
       cwd: __dirname,
       url: "http://127.0.0.1:3000/login",
       timeout: 120_000,
-      reuseExistingServer: false,
+      reuseExistingServer,
     },
   ],
 })

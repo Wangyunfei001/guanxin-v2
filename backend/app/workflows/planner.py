@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 
 from pydantic import ValidationError
@@ -20,9 +19,7 @@ WORKFLOW_INTENTS = {
     "single_update",
     "single_delete",
     "batch_operation",
-    "multi_step_flow",
 }
-SEQUENCE_PATTERN = re.compile(r"(先.+再|然后|接着|随后|最后|依次|逐步|并且)", re.IGNORECASE)
 
 
 class WorkflowPlannerError(RuntimeError):
@@ -30,9 +27,7 @@ class WorkflowPlannerError(RuntimeError):
 
 
 def detect_workflow_intent(text: str) -> str:
-    """Return the workflow intent or an empty string for the normal chat graph."""
-    if SEQUENCE_PATTERN.search(text):
-        return "multi_step_flow"
+    """Return only explicit mutating intents that require a durable workflow."""
     classified = _regex_classify(text)
     if classified and classified[0] in WORKFLOW_INTENTS:
         return classified[0]

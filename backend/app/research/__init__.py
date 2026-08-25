@@ -1,0 +1,1 @@
+"""Persistent Deep Research subsystem."""

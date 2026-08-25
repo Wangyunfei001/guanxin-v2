@@ -1,5 +1,5 @@
 import client from "./client"
-import type { MCPConnection, MCPServer, ApiResponse } from "@/types"
+import type { MCPConnection, MCPServer, MCPToolPolicy, ApiResponse } from "@/types"
 
 /**
  * MCP (Model Context Protocol) API module.
@@ -50,6 +50,17 @@ export const mcpApi = {
    */
   listConnections(): Promise<ApiResponse<MCPConnection[]>> {
     return client.get("/mcp/connections")
+  },
+
+  updateToolPolicy(
+    serverName: string,
+    toolName: string,
+    policy: Pick<MCPToolPolicy, "enabled" | "effect" | "approval_required">,
+  ): Promise<ApiResponse<MCPToolPolicy>> {
+    return client.put(
+      `/mcp/servers/${encodeURIComponent(serverName)}/tools/${encodeURIComponent(toolName)}/policy`,
+      policy,
+    )
   },
 
   /**

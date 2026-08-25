@@ -25,6 +25,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.agent.executor import execute_agent
+from app.agent.supervisor import decide_route
+from app.agent.tool_catalog import build_tool_catalog
 from app.core.deps import get_current_user
 from app.models.tenant import User
 from app.models.agent import ConversationMessage
@@ -37,6 +39,7 @@ from app.services.workflow_store import (
     WorkflowConflictError,
     get_workflow_store,
 )
+from app.research.engine import public_research_snapshot, run_research
 
 logger = logging.getLogger(__name__)
 
@@ -301,6 +304,58 @@ async def _stream_workflow_resume(
         yield event
 
 
+async def _stream_research(
+    *,
+    user_message: str,
+    conversation_id: str,
+    tenant_id: str,
+    user_id: str,
+    mode: str,
+    catalog: list,
+) -> AsyncGenerator[str, None]:
+    """Stream a persistent Research run as a standard AI SDK data part."""
+    conv_store = get_conversation_store()
+    conv_store.add_message(
+        conversation_id,
+        ConversationMessage(role="user", content=user_message),
+    )
+    message_id = f"msg_{uuid.uuid4().hex[:12]}"
+    text_id = f"text_{uuid.uuid4().hex[:12]}"
+    yield _aisdk_event("start", messageId=message_id)
+    final_snapshot: dict[str, Any] = {}
+    async for snapshot in run_research(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        conversation_id=conversation_id,
+        goal=user_message,
+        mode=mode,
+        catalog=catalog,
+    ):
+        final_snapshot = snapshot
+        yield _aisdk_event("data-research", data=snapshot)
+
+    report = str(final_snapshot.get("report") or "")
+    if not report and final_snapshot.get("status") == "cancelled":
+        report = "研究已取消。"
+    if not report and final_snapshot.get("error"):
+        report = f"研究未完成：{final_snapshot['error']}"
+    parts: list[dict[str, Any]] = [
+        {"type": "data-research", "data": final_snapshot}
+    ]
+    if report:
+        parts.append({"type": "text", "text": report})
+        yield _aisdk_event("text-start", id=text_id)
+        yield _aisdk_event("text-delta", id=text_id, delta=report)
+        yield _aisdk_event("text-end", id=text_id)
+    conv_store.add_message(
+        conversation_id,
+        ConversationMessage(role="assistant", content=report, parts=parts),
+    )
+    yield _aisdk_event("finish-step")
+    yield _aisdk_event("finish")
+    yield "data: [DONE]\n\n"
+
+
 router = APIRouter(prefix="/agent", tags=["AI-SDK"])
 
 
@@ -378,8 +433,24 @@ async def _stream_aisdk_response(
         yield "data: [DONE]\n\n"
         return
 
-    workflow_intent = detect_workflow_intent(user_message)
-    if workflow_intent:
+    research_mode = str(input_body.get("research_mode", "auto"))
+    config = get_agent_config_store().get_or_create_default(tenant_id)
+    catalog = await build_tool_catalog(
+        config,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        user_role=user_role,
+        conversation_id=input_body["id"],
+    )
+    decision = await decide_route(
+        user_message,
+        config,
+        catalog,
+        research_mode=research_mode,
+    )
+
+    if decision.route == "write_workflow":
+        workflow_intent = detect_workflow_intent(user_message) or "multi_step_flow"
         async for event in _stream_workflow_start(
             user_message=user_message,
             intent=workflow_intent,
@@ -388,6 +459,19 @@ async def _stream_aisdk_response(
             user_id=user_id,
             user_role=user_role,
             agent_id="default",
+        ):
+            yield event
+        return
+
+    if decision.route == "research":
+        mode = "deep" if decision.research_mode == "deep" else "quick"
+        async for event in _stream_research(
+            user_message=user_message,
+            conversation_id=input_body["id"],
+            tenant_id=tenant_id,
+            user_id=user_id,
+            mode=mode,
+            catalog=catalog,
         ):
             yield event
         return
@@ -419,6 +503,9 @@ async def _stream_aisdk_response(
             model_name="",
             temperature=0.7,
             user_role=user_role,
+            route_decision=decision,
+            catalog=catalog,
+            research_mode=research_mode,
         ):
             # 解析 SSE 消息
             sse_str = sse_msg.strip()
@@ -450,6 +537,9 @@ async def _stream_aisdk_response(
 
             # --- tool_call ---
             elif event_subtype == "tool_call":
+                if not message_started:
+                    yield _aisdk_event("start", messageId=message_id)
+                    message_started = True
                 tool_call_id = data.get("tool_call_id") or f"call_{uuid.uuid4().hex[:12]}"
                 tool_name = data.get("tool_name", "unknown")
                 tool_input = data.get("tool_input", "")
@@ -568,6 +658,8 @@ async def chat_aisdk(
     conversation_id = body.get("id")
     if not conversation_id:
         raise HTTPException(status_code=422, detail="缺少 conversation id")
+    if body.get("research_mode", "auto") not in {"auto", "quick", "deep"}:
+        raise HTTPException(status_code=422, detail="research_mode 必须为 auto、quick 或 deep")
 
     # 会话必须已创建且属于当前租户和用户；跨租户统一按未找到处理。
     conv_store = get_conversation_store()

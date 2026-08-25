@@ -9,6 +9,7 @@ import {
   lastAssistantMessageIsCompleteWithApprovalResponses,
 } from "ai";
 import type { GuanxinUIMessage } from "@/types";
+import { useResearchModeStore } from "@/lib/stores/research";
 
 // ── Provider ──
 
@@ -37,6 +38,14 @@ export const AiSdkRuntimeProvider: FC<{
           }
           return globalThis.fetch(input, init);
         },
+        prepareSendMessagesRequest: ({ id, messages, body }) => ({
+          body: {
+            ...body,
+            id,
+            messages,
+            research_mode: useResearchModeStore.getState().mode,
+          },
+        }),
       }),
     [],
   );

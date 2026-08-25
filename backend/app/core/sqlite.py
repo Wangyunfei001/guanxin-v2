@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
 from app.config import settings
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _database_path() -> Path:
@@ -225,8 +226,128 @@ def initialize_database() -> None:
                 completed_at TEXT,
                 UNIQUE(run_id, step_id, attempt)
             );
+
+            CREATE TABLE IF NOT EXISTS mcp_tool_policies (
+                tenant_id TEXT NOT NULL,
+                server_name TEXT NOT NULL,
+                tool_name TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+                effect TEXT NOT NULL DEFAULT 'unknown'
+                    CHECK(effect IN ('read','write','unknown')),
+                approval_required INTEGER NOT NULL DEFAULT 1
+                    CHECK(approval_required IN (0, 1)),
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (tenant_id, server_name, tool_name)
+            );
+            CREATE INDEX IF NOT EXISTS idx_mcp_tool_policies_tenant
+                ON mcp_tool_policies(tenant_id, server_name);
+
+            CREATE TABLE IF NOT EXISTS research_runs (
+                run_id TEXT PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL
+                    REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+                mode TEXT NOT NULL CHECK(mode IN ('quick','deep')),
+                status TEXT NOT NULL CHECK(status IN (
+                    'planning','searching','analyzing','synthesizing',
+                    'completed','failed','cancelled','interrupted'
+                )),
+                goal TEXT NOT NULL,
+                plan_json TEXT NOT NULL DEFAULT '{}',
+                budget_json TEXT NOT NULL DEFAULT '{}',
+                usage_json TEXT NOT NULL DEFAULT '{}',
+                report TEXT NOT NULL DEFAULT '',
+                error TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_research_runs_owner
+                ON research_runs(tenant_id, user_id, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_research_runs_conversation
+                ON research_runs(conversation_id, updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS research_tasks (
+                task_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL
+                    REFERENCES research_runs(run_id) ON DELETE CASCADE,
+                position INTEGER NOT NULL,
+                question TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN (
+                    'pending','searching','completed','failed','cancelled'
+                )),
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                result_summary TEXT NOT NULL DEFAULT '',
+                error TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(run_id, position)
+            );
+            CREATE INDEX IF NOT EXISTS idx_research_tasks_run
+                ON research_tasks(run_id, position);
+
+            CREATE TABLE IF NOT EXISTS research_sources (
+                source_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL
+                    REFERENCES research_runs(run_id) ON DELETE CASCADE,
+                canonical_url TEXT NOT NULL,
+                title TEXT NOT NULL DEFAULT '',
+                publisher TEXT NOT NULL DEFAULT '',
+                snippet TEXT NOT NULL DEFAULT '',
+                query TEXT NOT NULL DEFAULT '',
+                accessed_at TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                UNIQUE(run_id, canonical_url)
+            );
+            CREATE INDEX IF NOT EXISTS idx_research_sources_run
+                ON research_sources(run_id, accessed_at DESC);
+
+            CREATE TABLE IF NOT EXISTS research_events (
+                event_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL
+                    REFERENCES research_runs(run_id) ON DELETE CASCADE,
+                sequence INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                UNIQUE(run_id, sequence)
+            );
+            CREATE INDEX IF NOT EXISTS idx_research_events_run
+                ON research_events(run_id, sequence);
             """
         )
+        already_v3 = conn.execute(
+            "SELECT 1 FROM schema_version WHERE version=?",
+            (SCHEMA_VERSION,),
+        ).fetchone()
+        if already_v3 is None:
+            aliases = {
+                "deepseek-chat": "deepseek-v4-pro",
+                "deepseek-reasoner": "deepseek-v4-pro",
+            }
+            rows = conn.execute(
+                "SELECT tenant_id, agent_id, model, enabled_tools_json FROM agent_configs"
+            ).fetchall()
+            for row in rows:
+                enabled_tools = json.loads(row["enabled_tools_json"] or "[]")
+                for core_tool in ("web_search", "deep_research"):
+                    if core_tool not in enabled_tools:
+                        enabled_tools.append(core_tool)
+                conn.execute(
+                    """
+                    UPDATE agent_configs
+                    SET model=?, enabled_tools_json=?, updated_at=datetime('now')
+                    WHERE tenant_id=? AND agent_id=?
+                    """,
+                    (
+                        aliases.get(row["model"], row["model"]),
+                        json.dumps(enabled_tools, ensure_ascii=False),
+                        row["tenant_id"],
+                        row["agent_id"],
+                    ),
+                )
         conn.execute(
             "INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES (?, datetime('now'))",
             (SCHEMA_VERSION,),

@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # === LLM 配置 ===
     openai_api_key: str = ""
     openai_api_base: str = "https://api.openai.com/v1"
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "deepseek-v4-pro"
 
     # === Embedding 配置 ===
     embedding_provider: Literal["openai", "ollama", "local"] = "openai"
@@ -59,8 +59,19 @@ class Settings(BaseSettings):
 
     # === Agent 配置 ===
     agent_mode: str = "state_graph"  # "state_graph" | "legacy"
-    available_models: str = "deepseek-chat,deepseek-reasoner,gpt-4o-mini,gpt-4o"
+    available_models: str = "deepseek-v4-pro,deepseek-v4-flash,gpt-4o-mini,gpt-4o"
     openai_temperature: float = 0.7
+
+    # === Deep Research ===
+    research_model: str = "deepseek-v4-flash"
+    research_quick_rounds: int = 2
+    research_quick_searches: int = 4
+    research_quick_sources: int = 8
+    research_quick_timeout_seconds: int = 90
+    research_deep_rounds: int = 5
+    research_deep_searches: int = 20
+    research_deep_sources: int = 30
+    research_deep_timeout_seconds: int = 480
 
     # === 预设用户 ===
     preset_users_json: str = ""

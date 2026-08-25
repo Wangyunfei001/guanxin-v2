@@ -36,6 +36,8 @@ async def handle_get_weather(
         temp_str = f"{temp_c}°C"
 
     return {
+        "simulated": True,
+        "notice": "演示模拟数据，不代表实时天气",
         "city": city,
         "temperature": temp_str,
         "condition": condition,
@@ -50,7 +52,7 @@ async def main() -> None:
     try:
         from mcp.server import Server
         from mcp.server.stdio import stdio_server
-        from mcp.types import Tool, TextContent
+        from mcp.types import Tool, TextContent, ToolAnnotations
 
         server = Server("weather-server")
 
@@ -60,7 +62,7 @@ async def main() -> None:
             return [
                 Tool(
                     name="get_weather",
-                    description="获取指定城市的天气信息",
+                    description="获取指定城市的天气演示数据。结果为模拟数据，不代表实时天气。",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -76,6 +78,13 @@ async def main() -> None:
                         },
                         "required": ["city"],
                     },
+                    annotations=ToolAnnotations(
+                        title="天气演示查询",
+                        readOnlyHint=True,
+                        destructiveHint=False,
+                        idempotentHint=False,
+                        openWorldHint=False,
+                    ),
                 )
             ]
 

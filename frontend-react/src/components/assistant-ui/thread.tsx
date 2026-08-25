@@ -19,7 +19,9 @@ import { KbRetrievalRenderer } from "@/components/assistant-ui/tool-renderers/kb
 import { ConfirmActionRenderer } from "@/components/assistant-ui/tool-renderers/confirm-action";
 import { WorkflowControlRenderer } from "@/components/assistant-ui/tool-renderers/workflow-control";
 import { WorkflowDataRenderer } from "@/components/assistant-ui/workflow-card";
+import { ResearchDataRenderer } from "@/components/assistant-ui/research-card";
 import { selectHasActiveWorkflow, useWorkflowUiStore } from "@/lib/stores/workflow";
+import { type ResearchMode, useResearchModeStore } from "@/lib/stores/research";
 import {
   ToolGroupContent,
   ToolGroupRoot,
@@ -27,6 +29,7 @@ import {
 } from "@/components/assistant-ui/tool-group";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { A2UIRenderer } from "@/components/a2ui/A2UIRenderer";
 import { BrandMark } from "@/components/brand/brand-mark";
@@ -58,6 +61,7 @@ import {
   DotsThree as MoreHorizontalIcon,
   DownloadSimple as DownloadIcon,
   Microphone as MicIcon,
+  MagnifyingGlass as SearchIcon,
   PencilSimple as PencilIcon,
   Square as SquareIcon,
 } from "@phosphor-icons/react";
@@ -115,6 +119,7 @@ const isNewChatView = (s: AssistantState) =>
 export const Thread: FC<ThreadProps> = ({ components = EMPTY_COMPONENTS }) => {
   useAssistantDataUI({ name: "a2ui", render: A2UIDataRenderer });
   useAssistantDataUI({ name: "workflow", render: WorkflowDataRenderer });
+  useAssistantDataUI({ name: "research", render: ResearchDataRenderer });
   const isEmpty = useAuiState(isNewChatView);
 
   return (
@@ -279,7 +284,10 @@ const Composer: FC = () => {
 const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
-      <ComposerAddAttachment />
+      <div className="flex items-center gap-1">
+        <ComposerAddAttachment />
+        <ResearchModeSelect disabled={disabled} />
+      </div>
       <div className="flex items-center gap-1.5">
         <AuiIf condition={(s) => s.thread.capabilities.dictation}>
           <AuiIf condition={(s) => s.composer.dictation == null}>
@@ -344,6 +352,27 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
         </AuiIf>
       </div>
     </div>
+  );
+};
+
+const ResearchModeSelect: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
+  const mode = useResearchModeStore((state) => state.mode);
+  const setMode = useResearchModeStore((state) => state.setMode);
+  return (
+    <Select value={mode} onValueChange={(value) => setMode(value as ResearchMode)} disabled={disabled}>
+      <SelectTrigger
+        className="h-7 w-auto min-w-[104px] gap-1.5 rounded-full border-0 bg-transparent px-2 text-[11px] text-muted-foreground shadow-none hover:bg-muted hover:text-foreground focus:ring-0"
+        aria-label="研究模式"
+      >
+        <SearchIcon size={13} />
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="start">
+        <SelectItem value="auto">自动</SelectItem>
+        <SelectItem value="quick">快速研究</SelectItem>
+        <SelectItem value="deep">深度研究</SelectItem>
+      </SelectContent>
+    </Select>
   );
 };
 
