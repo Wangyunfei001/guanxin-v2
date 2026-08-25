@@ -55,7 +55,7 @@ class MCPServerManager:
                 name="weather",
                 command=sys.executable,
                 args=["-m", "app.mcp.weather_server"],
-                description="天气查询 MCP Server（示例）",
+                description="基于 Open-Meteo 的真实天气查询 MCP Server",
             )
 
 

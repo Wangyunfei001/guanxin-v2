@@ -48,7 +48,7 @@ SEED_DOCUMENTS: List[Dict[str, str]] = [
 在 A2UI 预览页面，可以选择不同的组件类型和模板，实时预览 A2UI 卡片的渲染效果。
 
 第七步：MCP 配置
-在 MCP 配置页面，可以管理和连接 MCP Server。系统内置了一个天气查询 MCP Server 作为示例。
+在 MCP 配置页面，可以管理和连接 MCP Server。系统内置了一个基于 Open-Meteo 的真实天气查询 MCP Server。
 """,
     },
 ]
@@ -76,6 +76,6 @@ SEED_MCP_SERVERS: List[Dict[str, Any]] = [
         "command": sys.executable,
         "args": ["-m", "app.mcp.weather_server"],
         "env": {},
-        "description": "天气查询 MCP Server（示例）",
+        "description": "基于 Open-Meteo 的真实天气查询 MCP Server",
     },
 ]
