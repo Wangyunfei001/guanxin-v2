@@ -3,23 +3,29 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import settings
 
-# 密码哈希上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt 算法只处理前 72 字节（与 passlib 旧行为一致，超出部分截断）
+BCRYPT_MAX_BYTES = 72
 
 
 def hash_password(password: str) -> str:
     """对明文密码进行哈希。"""
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(
+        password.encode("utf-8")[:BCRYPT_MAX_BYTES],
+        bcrypt.gensalt(),
+    ).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """校验明文密码与哈希值是否匹配。"""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8")[:BCRYPT_MAX_BYTES],
+        hashed_password.encode("utf-8"),
+    )
 
 
 def create_access_token(

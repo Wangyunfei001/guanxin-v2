@@ -261,7 +261,9 @@ export const ComposerAttachments: FC = () => {
   );
 };
 
-export const ComposerAddAttachment: FC = () => {
+export const ComposerAddAttachment: FC<{ disabled?: boolean }> = ({
+  disabled = false,
+}) => {
   return (
     <ComposerPrimitive.AddAttachment asChild>
       <TooltipIconButton
@@ -269,8 +271,9 @@ export const ComposerAddAttachment: FC = () => {
         side="bottom"
         variant="ghost"
         size="icon"
-        className="aui-composer-add-attachment hover:bg-muted-foreground/15 dark:border-muted-foreground/15 dark:hover:bg-muted-foreground/30 size-7 rounded-full p-1 text-xs font-semibold"
+        className="aui-composer-add-attachment size-8 rounded-full p-1 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
         aria-label="Add Attachment"
+        {...(disabled ? { disabled: true } : {})}
       >
         <PlusIcon className="aui-attachment-add-icon size-4.5 stroke-[1.5px]" />
       </TooltipIconButton>

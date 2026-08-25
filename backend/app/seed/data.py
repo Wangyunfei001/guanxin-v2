@@ -6,6 +6,8 @@
 import sys
 from typing import Any, Dict, List
 
+from app.agent.prompts import DEMO_SYSTEM_PROMPT
+
 # === 示例文档 ===
 SEED_DOCUMENTS: List[Dict[str, str]] = [
     {
@@ -60,7 +62,7 @@ SEED_AGENT_CONFIGS: List[Dict[str, Any]] = [
         "name": "默认助手",
         "description": "观心 v2 默认 AI 助手，具备知识库问答和技能执行能力",
         "model": "deepseek-v4-pro",
-        "system_prompt": "你是观心 v2 的 AI 助手，可以帮助用户管理知识库、分析数据、回答问题。请友善、专业地回答用户的问题。",
+        "system_prompt": DEMO_SYSTEM_PROMPT,
         "temperature": 0.7,
         "max_tokens": 4096,
         "enabled_tools": ["kb_retrieval", "web_search", "deep_research"],

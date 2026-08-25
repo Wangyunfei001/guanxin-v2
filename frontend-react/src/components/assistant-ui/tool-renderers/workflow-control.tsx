@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useWorkflowUiStore } from "@/lib/stores/workflow"
 import {
   Select,
   SelectContent,
@@ -26,6 +27,7 @@ interface WorkflowField {
 
 interface WorkflowControlProps {
   args: {
+    run_id?: string
     kind?: "input" | "approval"
     title?: string
     fields?: WorkflowField[]
@@ -57,6 +59,9 @@ export const WorkflowControlRenderer: FC<WorkflowControlProps> = ({
   respondToApproval,
   result,
 }) => {
+  const workflowStatus = useWorkflowUiStore((state) =>
+    args.run_id ? state.statuses[args.run_id] : undefined,
+  )
   const fields = useMemo(() => args.fields || [], [args.fields])
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((field) => [field.name, String(field.default ?? "")])),
@@ -66,19 +71,22 @@ export const WorkflowControlRenderer: FC<WorkflowControlProps> = ({
     [fields, values],
   )
 
-  if (approval?.approved === false) {
-    return <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">该步骤已拒绝，流程已取消。</div>
-  }
-  if (result !== undefined) {
-    return <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">响应已提交，工作流正在继续。</div>
-  }
-  if (approval?.approved === true) {
-    return <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">已确认，正在恢复工作流...</div>
-  }
+  if (
+    approval?.approved !== undefined
+    || result !== undefined
+    || workflowStatus === "completed"
+    || workflowStatus === "failed"
+    || workflowStatus === "cancelled"
+  ) return null
 
   const needsInput = args.kind === "input"
   return (
-    <Card className={needsInput ? "border-blue-200 bg-blue-50/60" : "border-amber-200 bg-amber-50/60"}>
+    <Card
+      data-slot="workflow-control"
+      className={needsInput
+        ? "-mt-4 mb-4 rounded-t-none border-primary/20 border-t-0 bg-primary/[0.035] shadow-panel"
+        : "-mt-4 mb-4 rounded-t-none border-amber-300/55 border-t-0 bg-amber-50/60 shadow-panel dark:bg-amber-950/15"}
+    >
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           {needsInput ? <ClipboardPenLine className="size-5 text-blue-600" /> : <AlertTriangle className="size-5 text-amber-600" />}

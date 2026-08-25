@@ -6,6 +6,7 @@ import json
 import uuid
 from typing import Any, Dict, List, Optional
 
+from app.agent.prompts import DEMO_SYSTEM_PROMPT
 from app.core.sqlite import connect, initialize_database, transaction
 
 
@@ -237,7 +238,7 @@ class AgentConfigStore:
             tenant_id=tenant_id,
             name="默认助手",
             description="观心 v2 默认 AI 助手",
-            system_prompt="你是观心 v2 的 AI 助手，可以帮助用户管理知识库、分析数据、回答问题。请友善、专业地回答用户的问题。",
+            system_prompt=DEMO_SYSTEM_PROMPT,
         )
         self.save_config(config)
         return config

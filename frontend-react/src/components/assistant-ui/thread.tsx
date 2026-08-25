@@ -43,6 +43,7 @@ import {
   ComposerPrimitive,
   ErrorPrimitive,
   groupPartByType,
+  type GroupByContext,
   MessagePrimitive,
   SuggestionPrimitive,
   ThreadPrimitive,
@@ -138,9 +139,9 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
       style={{
         ["--thread-max-width" as string]: "49rem",
         ["--composer-bg" as string]:
-          "color-mix(in oklab, hsl(var(--muted)) 54%, hsl(var(--background)))",
-        ["--composer-radius" as string]: "1rem",
-        ["--composer-padding" as string]: "8px",
+          "color-mix(in oklab, hsl(var(--surface-elevated)) 92%, hsl(var(--background)))",
+        ["--composer-radius" as string]: "18px",
+        ["--composer-padding" as string]: "10px",
       }}
     >
       <ThreadPrimitive.Viewport
@@ -150,7 +151,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
       >
         <div
           className={cn(
-            "mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-14 sm:px-7",
+            "mx-auto flex w-full max-w-[var(--thread-max-width)] flex-1 flex-col px-4 pt-14 sm:px-7",
             isEmpty && "justify-center",
           )}
         >
@@ -169,9 +170,9 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 
           <ThreadPrimitive.ViewportFooter
             className={cn(
-              "aui-thread-viewport-footer flex flex-col gap-3 overflow-visible pb-4 md:pb-6",
+              "aui-thread-viewport-footer flex flex-col gap-3 overflow-visible pb-[max(1rem,env(safe-area-inset-bottom))] md:pb-6",
               !isEmpty &&
-                "sticky bottom-0 mt-auto rounded-t-(--composer-radius) bg-gradient-to-t from-background via-background to-background/0 pt-8",
+                "sticky bottom-0 mt-auto rounded-t-[var(--composer-radius)] bg-gradient-to-t from-background via-background to-background/0 pt-8",
             )}
           >
             <ThreadScrollToBottom />
@@ -262,12 +263,13 @@ const Composer: FC = () => {
       <ComposerPrimitive.AttachmentDropzone asChild>
         <div
           data-slot="aui_composer-shell"
-          className="border-border/60 data-[dragging=true]:border-ring focus-within:border-border dark:border-muted-foreground/15 dark:focus-within:border-muted-foreground/30 flex w-full flex-col gap-2 rounded-(--composer-radius) border bg-(--composer-bg) p-(--composer-padding) shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] transition-[border-color,box-shadow] focus-within:shadow-[0_6px_24px_-8px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.05)] data-[dragging=true]:border-dashed data-[dragging=true]:bg-[color-mix(in_oklab,var(--color-accent)_50%,var(--color-background))] dark:shadow-none"
+          data-locked={hasActiveWorkflow ? "true" : "false"}
+          className="flex w-full flex-col gap-2.5 rounded-[var(--composer-radius)] border border-border/75 bg-[var(--composer-bg)] p-[var(--composer-padding)] shadow-float transition-[border-color,box-shadow,background-color] duration-200 focus-within:border-primary/35 focus-within:ring-4 focus-within:ring-primary/10 data-[dragging=true]:border-dashed data-[dragging=true]:border-primary/50 data-[dragging=true]:bg-accent/70 data-[dragging=true]:ring-4 data-[dragging=true]:ring-primary/10 data-[locked=true]:border-border/55 data-[locked=true]:bg-muted/60 data-[locked=true]:shadow-none dark:border-border/80 dark:focus-within:border-primary/40"
         >
           <ComposerAttachments />
           <ComposerPrimitive.Input
             placeholder={hasActiveWorkflow ? "请先处理或取消当前工作流" : "描述任务，或直接问一个问题"}
-            className="aui-composer-input caret-primary placeholder:text-muted-foreground/80 max-h-32 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base outline-none"
+            className="aui-composer-input max-h-44 min-h-14 w-full resize-none bg-transparent px-3 py-2 text-base leading-6 text-foreground caret-primary outline-none placeholder:text-muted-foreground/70 disabled:cursor-not-allowed disabled:text-muted-foreground sm:min-h-16 sm:text-[15px]"
             rows={1}
             autoFocus
             enterKeyHint="send"
@@ -283,12 +285,12 @@ const Composer: FC = () => {
 
 const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
   return (
-    <div className="aui-composer-action-wrapper relative flex items-center justify-between">
-      <div className="flex items-center gap-1">
-        <ComposerAddAttachment />
+    <div className="aui-composer-action-wrapper relative flex min-h-9 items-center justify-between gap-2 px-0.5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <ComposerAddAttachment disabled={disabled} />
         <ResearchModeSelect disabled={disabled} />
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1.5">
         <AuiIf condition={(s) => s.thread.capabilities.dictation}>
           <AuiIf condition={(s) => s.composer.dictation == null}>
             <ComposerPrimitive.Dictate asChild>
@@ -298,8 +300,9 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="aui-composer-dictate size-7 rounded-full"
+                className="aui-composer-dictate size-8 rounded-full text-muted-foreground hover:text-foreground"
                 aria-label="开始语音输入"
+                {...(disabled ? { disabled: true } : {})}
               >
                 <MicIcon className="aui-composer-dictate-icon size-4" />
               </TooltipIconButton>
@@ -313,8 +316,9 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="aui-composer-stop-dictation text-destructive size-7 rounded-full"
+                className="aui-composer-stop-dictation size-8 rounded-full text-destructive"
                 aria-label="停止语音输入"
+                {...(disabled ? { disabled: true } : {})}
               >
                 <SquareIcon className="aui-composer-stop-dictation-icon size-3.5 animate-pulse fill-current" />
               </TooltipIconButton>
@@ -329,9 +333,9 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-send size-7 rounded-full"
+              className="aui-composer-send size-9 rounded-full shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.9)] disabled:shadow-none"
               aria-label="发送消息"
-              disabled={disabled}
+              {...(disabled ? { disabled: true } : {})}
             >
               <ArrowUpIcon className="aui-composer-send-icon size-4.5" />
             </TooltipIconButton>
@@ -343,7 +347,7 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-cancel size-7 rounded-full"
+              className="aui-composer-cancel size-9 rounded-full shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.9)]"
               aria-label="停止生成"
             >
               <SquareIcon className="aui-composer-cancel-icon size-3.5 fill-current" />
@@ -361,7 +365,7 @@ const ResearchModeSelect: FC<{ disabled?: boolean }> = ({ disabled = false }) =>
   return (
     <Select value={mode} onValueChange={(value) => setMode(value as ResearchMode)} disabled={disabled}>
       <SelectTrigger
-        className="h-7 w-auto min-w-[104px] gap-1.5 rounded-full border-0 bg-transparent px-2 text-[11px] text-muted-foreground shadow-none hover:bg-muted hover:text-foreground focus:ring-0"
+        className="h-8 w-auto min-w-[112px] gap-1.5 rounded-full border border-border/55 bg-muted/55 px-2.5 text-xs text-muted-foreground shadow-none transition-colors hover:border-border hover:bg-muted hover:text-foreground focus:ring-1 focus:ring-primary/25 focus:ring-offset-0"
         aria-label="研究模式"
       >
         <SearchIcon size={13} />
@@ -386,6 +390,22 @@ const MessageError: FC = () => {
   );
 };
 
+const defaultAssistantGroupBy = groupPartByType({
+  reasoning: ["group-chainOfThought", "group-reasoning"],
+  "tool-call": ["group-chainOfThought", "group-tool"],
+  "standalone-tool-call": [],
+});
+
+const assistantGroupBy: typeof defaultAssistantGroupBy = (
+  part,
+  context?: GroupByContext,
+) => {
+  if (part.type === "tool-call" && part.toolName === "workflow_control") {
+    return [];
+  }
+  return defaultAssistantGroupBy(part, context);
+};
+
 const AssistantMessage: FC = () => {
   const {
     ToolFallback: ToolFallbackComponent = ToolFallback,
@@ -407,13 +427,7 @@ const AssistantMessage: FC = () => {
         data-slot="aui_assistant-message-content"
         className="text-foreground px-2 leading-relaxed wrap-break-word"
       >
-        <MessagePrimitive.GroupedParts
-          groupBy={groupPartByType({
-            reasoning: ["group-chainOfThought", "group-reasoning"],
-            "tool-call": ["group-chainOfThought", "group-tool"],
-            "standalone-tool-call": [],
-          })}
-        >
+        <MessagePrimitive.GroupedParts groupBy={assistantGroupBy}>
           {({ part, children }) => {
             switch (part.type) {
               case "group-chainOfThought":
@@ -590,9 +604,9 @@ const EditComposer: FC = () => {
       data-slot="aui_edit-composer-wrapper"
       className="flex flex-col px-2 [contain-intrinsic-size:auto_200px] [content-visibility:auto]"
     >
-      <ComposerPrimitive.Root className="aui-edit-composer-root border-border/60 dark:border-muted-foreground/15 ms-auto flex w-full max-w-[85%] flex-col rounded-(--composer-radius) border bg-(--composer-bg) shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-none">
+      <ComposerPrimitive.Root className="aui-edit-composer-root ms-auto flex w-full max-w-full flex-col rounded-[var(--composer-radius)] border border-border/75 bg-[var(--composer-bg)] shadow-panel transition-[border-color,box-shadow] duration-200 focus-within:border-primary/35 focus-within:ring-4 focus-within:ring-primary/10 dark:border-border/80 sm:max-w-[85%]">
         <ComposerPrimitive.Input
-          className="aui-edit-composer-input text-foreground min-h-14 w-full resize-none bg-transparent px-4 pt-3 pb-1 text-base outline-none"
+          className="aui-edit-composer-input max-h-44 min-h-14 w-full resize-none bg-transparent px-4 pt-3 pb-1 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground/70 sm:text-[15px]"
           autoFocus
         />
         <div className="aui-edit-composer-footer mx-2.5 mb-2.5 flex items-center gap-1.5 self-end">

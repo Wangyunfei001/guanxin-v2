@@ -34,6 +34,7 @@ from app.services.conversation_store import get_conversation_store
 from app.workflows.engine import resume_workflow, start_workflow
 from app.workflows.planner import WorkflowPlannerError, detect_workflow_intent
 from app.workflows.catalog import catalog_by_name
+from app.workflows.presentation import pending_workflow_part, workflow_public_data
 from app.models.agent import get_agent_config_store
 from app.services.workflow_store import (
     WorkflowConflictError,
@@ -76,102 +77,23 @@ def _approval_params(reason: str) -> dict:
         return {}
 
 
-def _workflow_public_data(run: dict[str, Any]) -> dict[str, Any]:
-    """Return the UI-safe, history-persisted workflow snapshot."""
-    steps = [
-        {
-            "step_id": step["step_id"],
-            "position": step["position"],
-            "title": step["title"],
-            "tool_name": step["tool_name"],
-            "category": step["tool_category"],
-            "risk": step["risk"],
-            "status": step["status"],
-            "attempt_count": step["attempt_count"],
-            "result": step["result"],
-            "error": step["error"],
-        }
-        for step in run["steps"]
-    ]
-    pending = next(
-        (item for item in reversed(run["interrupts"]) if item["status"] == "pending"),
-        None,
-    )
-    return {
-        "run_id": run["run_id"],
-        "conversation_id": run["conversation_id"],
-        "goal": run["goal"],
-        "summary": run["summary"],
-        "status": run["status"],
-        "current_step_index": run["current_step_index"],
-        "version": run["version"],
-        "last_error": run["last_error"],
-        "steps": steps,
-        "pending_interrupt": (
-            {
-                "interrupt_id": pending["interrupt_id"],
-                "kind": pending["kind"],
-                "payload": pending["payload"],
-            }
-            if pending
-            else None
-        ),
-    }
-
-
-def _pending_workflow_part(run: dict[str, Any]) -> Optional[dict[str, Any]]:
-    pending = next(
-        (item for item in reversed(run["interrupts"]) if item["status"] == "pending"),
-        None,
-    )
-    if pending is None or pending["kind"] not in {"input", "approval"}:
-        return None
-    tool_call_id = f"workflow_{pending['interrupt_id']}"
-    return {
-        "type": "tool-workflow_control",
-        "toolCallId": tool_call_id,
-        "state": "approval-requested",
-        "input": {
-            "run_id": run["run_id"],
-            "interrupt_id": pending["interrupt_id"],
-            "kind": pending["kind"],
-            **pending["payload"],
-        },
-        "approval": {"id": pending["interrupt_id"]},
-    }
-
-
-def _workflow_result_text(run: dict[str, Any]) -> str:
-    if run["status"] == "completed":
-        return f"工作流已完成：{run['goal']}"
-    if run["status"] == "cancelled":
-        return "工作流已取消。"
-    if run["status"] == "failed":
-        return f"工作流执行失败：{run['last_error'] or '未知错误'}"
-    if run["status"] == "uncertain":
-        return "风险步骤的执行结果不确定，请在工作流卡片中选择处理方式。"
-    return ""
-
-
 async def _emit_workflow_state(
     run: dict[str, Any],
     *,
-    include_data: bool,
+    message_id: str,
     responded_tool_call_id: str = "",
 ) -> AsyncGenerator[str, None]:
-    """Emit an AI SDK response for a workflow snapshot."""
-    message_id = f"msg_{uuid.uuid4().hex[:12]}"
+    """Reconcile a workflow snapshot into its stable assistant message."""
     yield _aisdk_event("start", messageId=message_id)
-    data = _workflow_public_data(run)
-    if include_data:
-        yield _aisdk_event("data-workflow", data=data)
+    data = workflow_public_data(run)
+    yield _aisdk_event("data-workflow", id=run["run_id"], data=data)
     if responded_tool_call_id:
         yield _aisdk_event(
             "tool-output-available",
             toolCallId=responded_tool_call_id,
             output={"run_id": run["run_id"], "status": run["status"]},
         )
-    pending_part = _pending_workflow_part(run)
+    pending_part = pending_workflow_part(run)
     if pending_part:
         yield _aisdk_event(
             "tool-input-available",
@@ -184,12 +106,6 @@ async def _emit_workflow_state(
             toolCallId=pending_part["toolCallId"],
             approvalId=pending_part["approval"]["id"],
         )
-    text = _workflow_result_text(run)
-    if text:
-        text_id = f"text_{uuid.uuid4().hex[:12]}"
-        yield _aisdk_event("text-start", id=text_id)
-        yield _aisdk_event("text-delta", id=text_id, delta=text)
-        yield _aisdk_event("text-end", id=text_id)
     yield _aisdk_event("finish-step")
     yield _aisdk_event("finish")
     yield "data: [DONE]\n\n"
@@ -233,19 +149,16 @@ async def _stream_workflow_start(
         yield _aisdk_event("error", errorText=str(exc))
         yield "data: [DONE]\n\n"
         return
-    data = _workflow_public_data(run)
-    parts: list[dict[str, Any]] = [{"type": "data-workflow", "data": data}]
-    pending_part = _pending_workflow_part(run)
-    if pending_part:
-        parts.append(pending_part)
-    text = _workflow_result_text(run)
-    if text:
-        parts.append({"type": "text", "text": text})
-    conv_store.add_message(
-        conversation_id,
-        ConversationMessage(role="assistant", content=text, parts=parts, tool_calls=[pending_part] if pending_part else []),
+    data = workflow_public_data(run)
+    pending_part = pending_workflow_part(run)
+    message_id = conv_store.upsert_workflow_message(
+        conversation_id, run["run_id"], data, pending_part
     )
-    async for event in _emit_workflow_state(run, include_data=True):
+    if message_id is None:
+        yield _aisdk_event("error", errorText="工作流消息持久化失败")
+        yield "data: [DONE]\n\n"
+        return
+    async for event in _emit_workflow_state(run, message_id=message_id):
         yield event
 
 
@@ -271,34 +184,18 @@ async def _stream_workflow_resume(
         yield "data: [DONE]\n\n"
         return
     conv_store = get_conversation_store()
-    conv_store.update_approval_part(
-        run["conversation_id"],
-        approval_response["approval_id"],
-        approved=approval_response["approved"],
-        reason=approval_response.get("reason", ""),
-        output={"run_id": run["run_id"], "status": run["status"]},
+    data = workflow_public_data(run)
+    pending_part = pending_workflow_part(run)
+    message_id = conv_store.upsert_workflow_message(
+        run["conversation_id"], run["run_id"], data, pending_part
     )
-    conv_store.update_workflow_part(
-        run["conversation_id"], run["run_id"], _workflow_public_data(run)
-    )
-    pending_part = _pending_workflow_part(run)
-    text = _workflow_result_text(run)
-    if pending_part or text:
-        parts = ([pending_part] if pending_part else []) + (
-            [{"type": "text", "text": text}] if text else []
-        )
-        conv_store.add_message(
-            run["conversation_id"],
-            ConversationMessage(
-                role="assistant",
-                content=text,
-                parts=parts,
-                tool_calls=[pending_part] if pending_part else [],
-            ),
-        )
+    if message_id is None:
+        yield _aisdk_event("error", errorText="工作流消息持久化失败")
+        yield "data: [DONE]\n\n"
+        return
     async for event in _emit_workflow_state(
         run,
-        include_data=False,
+        message_id=message_id,
         responded_tool_call_id=approval_response.get("tool_call_id", ""),
     ):
         yield event

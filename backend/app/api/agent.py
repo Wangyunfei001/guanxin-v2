@@ -19,6 +19,7 @@ from app.skills.executor import ADMIN_ONLY_SKILLS
 from app.core.checkpoints import delete_checkpoint_thread
 from app.services.workflow_store import get_workflow_store, WorkflowConflictError
 from app.workflows.engine import resolve_uncertain_workflow
+from app.workflows.presentation import pending_workflow_part, workflow_public_data
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
@@ -48,39 +49,7 @@ class ResolveWorkflowRequest(BaseModel):
 
 
 def _workflow_response(run: dict) -> dict:
-    return {
-        "run_id": run["run_id"],
-        "conversation_id": run["conversation_id"],
-        "agent_id": run["agent_id"],
-        "goal": run["goal"],
-        "summary": run["summary"],
-        "status": run["status"],
-        "current_step_index": run["current_step_index"],
-        "version": run["version"],
-        "last_error": run["last_error"],
-        "steps": [
-            {
-                key: step[key]
-                for key in (
-                    "step_id", "position", "title", "tool_name", "tool_category",
-                    "risk", "status", "attempt_count", "result", "error",
-                )
-            }
-            for step in run["steps"]
-        ],
-        "interrupts": [
-            {
-                key: item[key]
-                for key in (
-                    "interrupt_id", "step_id", "kind", "status", "payload",
-                    "created_at", "updated_at",
-                )
-            }
-            for item in run["interrupts"]
-        ],
-        "created_at": run["created_at"],
-        "updated_at": run["updated_at"],
-    }
+    return workflow_public_data(run)
 
 
 async def _config_response(
@@ -208,9 +177,13 @@ async def cancel_workflow(run_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=409, detail="当前工作流不能取消")
     await delete_checkpoint_thread(run_id)
     updated = store.get_run(run_id, user.tenant_id, user.user_id)
-    snapshot = _workflow_response(updated or run)
-    get_conversation_store().update_workflow_part(
-        run["conversation_id"], run_id, snapshot
+    final_run = updated or run
+    snapshot = _workflow_response(final_run)
+    get_conversation_store().upsert_workflow_message(
+        run["conversation_id"],
+        run_id,
+        snapshot,
+        pending_workflow_part(final_run),
     )
     return success(snapshot)
 
@@ -239,8 +212,11 @@ async def resolve_workflow(
     except (ValueError, WorkflowConflictError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     snapshot = _workflow_response(updated)
-    get_conversation_store().update_workflow_part(
-        updated["conversation_id"], run_id, snapshot
+    get_conversation_store().upsert_workflow_message(
+        updated["conversation_id"],
+        run_id,
+        snapshot,
+        pending_workflow_part(updated),
     )
     return success(snapshot)
 

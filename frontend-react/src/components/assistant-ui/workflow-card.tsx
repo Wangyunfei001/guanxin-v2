@@ -130,7 +130,10 @@ export const WorkflowDataRenderer: FC<DataMessagePartProps<WorkflowData>> = ({ d
   }
 
   return (
-    <section className="my-4 overflow-hidden rounded-[16px] border border-border/75 bg-card/75 shadow-panel backdrop-blur-sm">
+    <section
+      data-slot="workflow-track"
+      className="my-4 overflow-hidden rounded-[16px] border border-border/75 bg-card/75 shadow-panel backdrop-blur-sm"
+    >
       <header className="border-b px-4 py-4 sm:px-5">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-primary/10 text-primary">

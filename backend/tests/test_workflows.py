@@ -131,7 +131,7 @@ def test_workflow_resumes_once_and_rejects_duplicate_approval(
             headers=admin_headers,
             json={"agent_id": "default", "title": "resume"},
         ).json()["data"]
-        test_client.post(
+        start_response = test_client.post(
             "/api/agent/chat/aisdk",
             headers=admin_headers,
             json={
@@ -143,8 +143,11 @@ def test_workflow_resumes_once_and_rejects_duplicate_approval(
             conv["conversation_id"], "tenant-a", "admin-001"
         )
         assert run["status"] == "waiting_input"
+        workflow_message_id = f"workflow-msg-{run['run_id']}"
+        assert f'"messageId": "{workflow_message_id}"' in start_response.text
+        assert f'"id": "{run["run_id"]}"' in start_response.text
         input_id = run["interrupts"][-1]["interrupt_id"]
-        test_client.post(
+        input_response = test_client.post(
             "/api/agent/chat/aisdk",
             headers=admin_headers,
             json={
@@ -172,6 +175,23 @@ def test_workflow_resumes_once_and_rejects_duplicate_approval(
         )
         approval_id = run["interrupts"][-1]["interrupt_id"]
         assert run["status"] == "waiting_approval"
+        assert f'"messageId": "{workflow_message_id}"' in input_response.text
+        assert f'"id": "{run["run_id"]}"' in input_response.text
+        intermediate = get_conversation_store().get_conversation(
+            conv["conversation_id"], "tenant-a"
+        )
+        assert intermediate is not None
+        intermediate_workflow_messages = [
+            message
+            for message in intermediate.messages
+            if any(
+                part.get("type") == "data-workflow"
+                for part in message.parts
+                if isinstance(part, dict)
+            )
+        ]
+        assert len(intermediate_workflow_messages) == 1
+        assert intermediate_workflow_messages[0].message_id == workflow_message_id
         approval_body = {
             "id": conv["conversation_id"],
             "messages": [{
@@ -183,12 +203,124 @@ def test_workflow_resumes_once_and_rejects_duplicate_approval(
                 }],
             }],
         }
-        test_client.post("/api/agent/chat/aisdk", headers=admin_headers, json=approval_body)
-        test_client.post("/api/agent/chat/aisdk", headers=admin_headers, json=approval_body)
+        completion_response = test_client.post(
+            "/api/agent/chat/aisdk", headers=admin_headers, json=approval_body
+        )
+        duplicate_response = test_client.post(
+            "/api/agent/chat/aisdk", headers=admin_headers, json=approval_body
+        )
         completed = get_workflow_store().get_run(run["run_id"])
         duplicate = get_workflow_store().get_run(run["run_id"])
         assert completed["status"] == duplicate["status"] == "completed"
+        assert f'"messageId": "{workflow_message_id}"' in completion_response.text
+        assert f'"messageId": "{workflow_message_id}"' in duplicate_response.text
         assert calls == 1
+
+        history = get_conversation_store().get_conversation(
+            conv["conversation_id"], "tenant-a"
+        )
+        assert history is not None
+        workflow_messages = [
+            message
+            for message in history.messages
+            if any(
+                part.get("type") == "data-workflow"
+                for part in message.parts
+                if isinstance(part, dict)
+            )
+        ]
+        assert len(workflow_messages) == 1
+        assert workflow_messages[0].message_id == workflow_message_id
+        workflow_parts = workflow_messages[0].parts
+        snapshots = [
+            part for part in workflow_parts if part.get("type") == "data-workflow"
+        ]
+        assert len(snapshots) == 1
+        assert snapshots[0]["id"] == run["run_id"]
+        assert snapshots[0]["data"]["status"] == "completed"
+        assert not any(
+            part.get("type") == "tool-workflow_control" for part in workflow_parts
+        )
+        assert not any(part.get("type") == "text" for part in workflow_parts)
+    finally:
+        get_agent_config_store().save_config(original)
+
+
+def test_workflow_rejection_updates_the_canonical_message(
+    test_client, admin_headers
+):
+    original = _enable_create_user()
+    try:
+        conv = test_client.post(
+            "/api/agent/conversations",
+            headers=admin_headers,
+            json={"agent_id": "default", "title": "reject"},
+        ).json()["data"]
+        test_client.post(
+            "/api/agent/chat/aisdk",
+            headers=admin_headers,
+            json={
+                "id": conv["conversation_id"],
+                "messages": [
+                    {
+                        "role": "user",
+                        "parts": [{"type": "text", "text": "创建一个用户"}],
+                    }
+                ],
+            },
+        )
+        run = get_workflow_store().get_active_for_conversation(
+            conv["conversation_id"], "tenant-a", "admin-001"
+        )
+        interrupt_id = run["interrupts"][-1]["interrupt_id"]
+        response = test_client.post(
+            "/api/agent/chat/aisdk",
+            headers=admin_headers,
+            json={
+                "id": conv["conversation_id"],
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "parts": [
+                            {
+                                "type": "tool-workflow_control",
+                                "toolCallId": f"workflow_{interrupt_id}",
+                                "approval": {
+                                    "id": interrupt_id,
+                                    "approved": False,
+                                    "reason": "用户取消",
+                                },
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+        rejected = get_workflow_store().get_run(run["run_id"])
+        assert rejected["status"] == "cancelled"
+        assert f'"messageId": "workflow-msg-{run["run_id"]}"' in response.text
+
+        history = get_conversation_store().get_conversation(
+            conv["conversation_id"], "tenant-a"
+        )
+        assert history is not None
+        workflow_messages = [
+            message
+            for message in history.messages
+            if any(
+                part.get("type") == "data-workflow"
+                for part in message.parts
+                if isinstance(part, dict)
+            )
+        ]
+        assert len(workflow_messages) == 1
+        parts = workflow_messages[0].parts
+        assert next(
+            part for part in parts if part.get("type") == "data-workflow"
+        )["data"]["status"] == "cancelled"
+        assert not any(
+            part.get("type") == "tool-workflow_control" for part in parts
+        )
     finally:
         get_agent_config_store().save_config(original)
 
@@ -363,5 +495,21 @@ def test_workflow_api_rbac_history_and_conversation_lock(
         )
         assert cancelled.status_code == 200
         assert cancelled.json()["data"]["status"] == "cancelled"
+        cancelled_history = test_client.get(
+            f"/api/agent/conversations/{conv['conversation_id']}",
+            headers=admin_headers,
+        ).json()["data"]
+        cancelled_parts = [
+            part
+            for message in cancelled_history["messages"]
+            for part in message["parts"]
+            if part.get("type") in {"data-workflow", "tool-workflow_control"}
+        ]
+        assert len(
+            [part for part in cancelled_parts if part["type"] == "data-workflow"]
+        ) == 1
+        assert not any(
+            part["type"] == "tool-workflow_control" for part in cancelled_parts
+        )
     finally:
         get_agent_config_store().save_config(original)

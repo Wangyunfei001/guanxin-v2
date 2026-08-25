@@ -43,6 +43,9 @@ venv/
 .venv/
 env/
 .env
+.env.*
+!.env.example
+!**/.env.example
 
 # ===== Node.js =====
 node_modules/
@@ -82,3 +85,4 @@ Thumbs.db
 
 # ===== 构建产物 =====
 backend/dist/
+backend/.pytest_cache/

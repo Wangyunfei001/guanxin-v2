@@ -10,7 +10,7 @@ from typing import Iterator, Optional
 
 from app.config import settings
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 
 
 def _database_path() -> Path:
@@ -46,6 +46,167 @@ def transaction() -> Iterator[sqlite3.Connection]:
         raise
     finally:
         conn.close()
+
+
+def _workflow_data_run_id(part: object) -> Optional[str]:
+    if not isinstance(part, dict) or part.get("type") != "data-workflow":
+        return None
+    data = part.get("data")
+    if not isinstance(data, dict) or not data.get("run_id"):
+        return None
+    return str(data["run_id"])
+
+
+def _workflow_control_run_id(part: object) -> Optional[str]:
+    if not isinstance(part, dict) or part.get("type") != "tool-workflow_control":
+        return None
+    tool_input = part.get("input")
+    if not isinstance(tool_input, dict) or not tool_input.get("run_id"):
+        return None
+    return str(tool_input["run_id"])
+
+
+def _migrate_workflow_messages_v4(conn: sqlite3.Connection) -> None:
+    """Collapse legacy workflow snapshots into one canonical message per run."""
+    rows = conn.execute(
+        """
+        SELECT rowid AS row_order, * FROM conversation_messages
+        ORDER BY conversation_id, created_at, rowid
+        """
+    ).fetchall()
+    by_conversation: dict[str, list[sqlite3.Row]] = {}
+    for row in rows:
+        by_conversation.setdefault(row["conversation_id"], []).append(row)
+
+    for conversation_rows in by_conversation.values():
+        parsed_parts: dict[str, list[object]] = {
+            row["message_id"]: json.loads(row["parts_json"] or "[]")
+            for row in conversation_rows
+        }
+        occurrences: dict[str, list[tuple[int, int, dict, dict]]] = {}
+        for row_index, row in enumerate(conversation_rows):
+            for part_index, part in enumerate(parsed_parts[row["message_id"]]):
+                run_id = _workflow_data_run_id(part)
+                if run_id is None:
+                    continue
+                occurrences.setdefault(run_id, []).append(
+                    (row_index, part_index, part, part["data"])
+                )
+        if not occurrences:
+            continue
+
+        canonical: dict[str, tuple[int, int, dict, Optional[dict]]] = {}
+        for run_id, run_occurrences in occurrences.items():
+            anchor = min(run_occurrences, key=lambda item: (item[0], item[1]))
+
+            def snapshot_rank(item: tuple[int, int, dict, dict]) -> tuple[int, int, int]:
+                raw_version = item[3].get("version", 0)
+                try:
+                    version = int(raw_version)
+                except (TypeError, ValueError):
+                    version = 0
+                return version, item[0], item[1]
+
+            latest = max(run_occurrences, key=snapshot_rank)
+            latest_data = latest[3]
+            pending = latest_data.get("pending_interrupt")
+            pending_id = (
+                str(pending.get("interrupt_id"))
+                if isinstance(pending, dict) and pending.get("interrupt_id")
+                else None
+            )
+            current_control: Optional[dict] = None
+            if pending_id:
+                for row in conversation_rows:
+                    for part in parsed_parts[row["message_id"]]:
+                        if _workflow_control_run_id(part) != run_id:
+                            continue
+                        tool_input = part.get("input")
+                        if (
+                            isinstance(tool_input, dict)
+                            and str(tool_input.get("interrupt_id", "")) == pending_id
+                        ):
+                            current_control = part
+            canonical[run_id] = (
+                anchor[0],
+                anchor[1],
+                latest_data,
+                current_control,
+            )
+
+        known_run_ids = set(canonical)
+        for row_index, row in enumerate(conversation_rows):
+            original_parts = parsed_parts[row["message_id"]]
+            anchors: dict[int, list[str]] = {}
+            for run_id, (anchor_row, anchor_part, _, _) in canonical.items():
+                if anchor_row == row_index:
+                    anchors.setdefault(anchor_part, []).append(run_id)
+
+            new_parts: list[object] = []
+            for part_index, part in enumerate(original_parts):
+                for run_id in anchors.get(part_index, []):
+                    _, _, latest_data, current_control = canonical[run_id]
+                    new_parts.append(
+                        {"type": "data-workflow", "id": run_id, "data": latest_data}
+                    )
+                    if current_control is not None:
+                        new_parts.append(current_control)
+
+                data_run_id = _workflow_data_run_id(part)
+                control_run_id = _workflow_control_run_id(part)
+                if data_run_id in known_run_ids or control_run_id in known_run_ids:
+                    continue
+                new_parts.append(part)
+
+            if new_parts == original_parts:
+                continue
+
+            tool_calls = [
+                part
+                for part in new_parts
+                if isinstance(part, dict)
+                and str(part.get("type", "")).startswith("tool-")
+            ]
+            a2ui_schemas = json.loads(row["a2ui_schemas_json"] or "[]")
+            can_delete = (
+                row["role"] == "assistant"
+                and not new_parts
+                and not row["content"].strip()
+                and not row["reasoning"].strip()
+                and not a2ui_schemas
+                and not tool_calls
+            )
+            if can_delete:
+                conn.execute(
+                    "DELETE FROM conversation_messages WHERE message_id=?",
+                    (row["message_id"],),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE conversation_messages
+                    SET parts_json=?, tool_calls_json=? WHERE message_id=?
+                    """,
+                    (
+                        json.dumps(new_parts, ensure_ascii=False),
+                        json.dumps(tool_calls, ensure_ascii=False),
+                        row["message_id"],
+                    ),
+                )
+
+
+def _migrate_default_agent_prompt_v5(conn: sqlite3.Connection) -> None:
+    """Upgrade untouched legacy default prompts without overwriting custom ones."""
+    from app.agent.prompts import DEMO_SYSTEM_PROMPT, LEGACY_DEFAULT_SYSTEM_PROMPT
+
+    conn.execute(
+        """
+        UPDATE agent_configs
+        SET system_prompt=?, updated_at=datetime('now')
+        WHERE agent_id='default' AND system_prompt=?
+        """,
+        (DEMO_SYSTEM_PROMPT, LEGACY_DEFAULT_SYSTEM_PROMPT),
+    )
 
 
 def initialize_database() -> None:
@@ -319,8 +480,7 @@ def initialize_database() -> None:
             """
         )
         already_v3 = conn.execute(
-            "SELECT 1 FROM schema_version WHERE version=?",
-            (SCHEMA_VERSION,),
+            "SELECT 1 FROM schema_version WHERE version=3"
         ).fetchone()
         if already_v3 is None:
             aliases = {
@@ -348,10 +508,38 @@ def initialize_database() -> None:
                         row["agent_id"],
                     ),
                 )
-        conn.execute(
-            "INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES (?, datetime('now'))",
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO schema_version(version, applied_at)
+                VALUES (3, datetime('now'))
+                """
+            )
+
+        already_v4 = conn.execute(
+            "SELECT 1 FROM schema_version WHERE version=4"
+        ).fetchone()
+        if already_v4 is None:
+            _migrate_workflow_messages_v4(conn)
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO schema_version(version, applied_at)
+                VALUES (4, datetime('now'))
+                """
+            )
+
+        already_v5 = conn.execute(
+            "SELECT 1 FROM schema_version WHERE version=?",
             (SCHEMA_VERSION,),
-        )
+        ).fetchone()
+        if already_v5 is None:
+            _migrate_default_agent_prompt_v5(conn)
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO schema_version(version, applied_at)
+                VALUES (?, datetime('now'))
+                """,
+                (SCHEMA_VERSION,),
+            )
 
 
 def close_database() -> None:

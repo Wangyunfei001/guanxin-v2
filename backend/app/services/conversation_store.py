@@ -10,6 +10,7 @@ from typing import Any, List, Optional
 
 from app.core.sqlite import connect, initialize_database, transaction
 from app.models.agent import Conversation, ConversationMessage
+from app.workflows.presentation import workflow_message_id
 
 
 class ConversationStore:
@@ -283,6 +284,130 @@ class ConversationStore:
                     return True
         return False
 
+    @staticmethod
+    def _is_workflow_data_part(part: Any, run_id: str) -> bool:
+        return (
+            isinstance(part, dict)
+            and part.get("type") == "data-workflow"
+            and isinstance(part.get("data"), dict)
+            and part["data"].get("run_id") == run_id
+        )
+
+    @staticmethod
+    def _is_workflow_control_part(part: Any, run_id: str) -> bool:
+        return (
+            isinstance(part, dict)
+            and part.get("type") == "tool-workflow_control"
+            and isinstance(part.get("input"), dict)
+            and part["input"].get("run_id") == run_id
+        )
+
+    def upsert_workflow_message(
+        self,
+        conversation_id: str,
+        run_id: str,
+        data: dict[str, Any],
+        pending_part: Optional[dict[str, Any]] = None,
+    ) -> Optional[str]:
+        """Create or reconcile the single assistant message owned by a run."""
+        now = datetime.now(timezone.utc).isoformat()
+        data_part = {"type": "data-workflow", "id": run_id, "data": data}
+        with transaction() as conn:
+            owner = conn.execute(
+                "SELECT 1 FROM conversations WHERE conversation_id=?",
+                (conversation_id,),
+            ).fetchone()
+            if owner is None:
+                return None
+
+            rows = conn.execute(
+                """
+                SELECT * FROM conversation_messages
+                WHERE conversation_id=? ORDER BY created_at, rowid
+                """,
+                (conversation_id,),
+            ).fetchall()
+            canonical = next(
+                (
+                    row
+                    for row in rows
+                    if any(
+                        self._is_workflow_data_part(part, run_id)
+                        for part in json.loads(row["parts_json"] or "[]")
+                    )
+                ),
+                None,
+            )
+
+            if canonical is None:
+                message_id = workflow_message_id(run_id)
+                parts = [data_part] + ([pending_part] if pending_part else [])
+                tool_calls = [pending_part] if pending_part else []
+                conn.execute(
+                    """
+                    INSERT INTO conversation_messages(
+                        message_id, conversation_id, role, content,
+                        tool_calls_json, tool_call_id, reasoning,
+                        a2ui_schemas_json, parts_json, created_at
+                    ) VALUES (?, ?, 'assistant', '', ?, '', '', '[]', ?, ?)
+                    """,
+                    (
+                        message_id,
+                        conversation_id,
+                        json.dumps(tool_calls, ensure_ascii=False),
+                        json.dumps(parts, ensure_ascii=False),
+                        now,
+                    ),
+                )
+            else:
+                message_id = canonical["message_id"]
+                existing_parts = json.loads(canonical["parts_json"] or "[]")
+                anchor_index = next(
+                    (
+                        index
+                        for index, part in enumerate(existing_parts)
+                        if self._is_workflow_data_part(part, run_id)
+                        or self._is_workflow_control_part(part, run_id)
+                    ),
+                    len(existing_parts),
+                )
+                retained_parts = [
+                    part
+                    for part in existing_parts
+                    if not self._is_workflow_data_part(part, run_id)
+                    and not self._is_workflow_control_part(part, run_id)
+                ]
+                insertion_index = min(anchor_index, len(retained_parts))
+                workflow_parts = [data_part] + ([pending_part] if pending_part else [])
+                parts = (
+                    retained_parts[:insertion_index]
+                    + workflow_parts
+                    + retained_parts[insertion_index:]
+                )
+                tool_calls = [
+                    part
+                    for part in parts
+                    if isinstance(part, dict)
+                    and str(part.get("type", "")).startswith("tool-")
+                ]
+                conn.execute(
+                    """
+                    UPDATE conversation_messages
+                    SET parts_json=?, tool_calls_json=? WHERE message_id=?
+                    """,
+                    (
+                        json.dumps(parts, ensure_ascii=False),
+                        json.dumps(tool_calls, ensure_ascii=False),
+                        message_id,
+                    ),
+                )
+
+            conn.execute(
+                "UPDATE conversations SET updated_at=? WHERE conversation_id=?",
+                (now, conversation_id),
+            )
+            return message_id
+
     def update_workflow_part(
         self,
         conversation_id: str,
@@ -307,6 +432,7 @@ class ConversationStore:
                         and isinstance(part.get("data"), dict)
                         and part["data"].get("run_id") == run_id
                     ):
+                        part["id"] = run_id
                         part["data"] = data
                         conn.execute(
                             "UPDATE conversation_messages SET parts_json=? WHERE message_id=?",
