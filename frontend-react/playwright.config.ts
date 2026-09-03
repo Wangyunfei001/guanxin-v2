@@ -1,9 +1,10 @@
 import path from "node:path"
 import { defineConfig, devices } from "@playwright/test"
 
-const runId = `${process.pid}-${Date.now()}`
 const backendDirectory = path.resolve(__dirname, "../backend")
 const reuseExistingServer = !process.env.CI
+const e2eRoot = process.env.GUANXIN_E2E_ROOT
+if (!e2eRoot) throw new Error("Run Playwright through npm run test:e2e")
 
 export default defineConfig({
   testDir: "./e2e",
@@ -31,10 +32,11 @@ export default defineConfig({
       env: {
         ...process.env,
         APP_ENV: "test",
-        DATABASE_PATH: `./data/playwright-${runId}.db`,
-        CHECKPOINT_DATABASE_PATH: `./data/playwright-checkpoints-${runId}.db`,
-        CHROMA_PERSIST_DIR: `./data/playwright-chroma-${runId}`,
-        UPLOAD_DIR: `./data/playwright-uploads-${runId}`,
+        DATABASE_PATH: path.join(e2eRoot, "guanxin.db"),
+        CHECKPOINT_DATABASE_PATH: path.join(e2eRoot, "checkpoints.db"),
+        CHROMA_PERSIST_DIR: path.join(e2eRoot, "chroma"),
+        UPLOAD_DIR: path.join(e2eRoot, "uploads"),
+        USER_DATA_PATH: path.join(e2eRoot, "users.json"),
         OPENAI_API_KEY: "",
         EMBEDDING_PROVIDER: "openai",
         EMBEDDING_API_KEY: "",

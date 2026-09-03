@@ -139,3 +139,5 @@ class TestKnowledge:
         assert data["code"] == 0
         assert data["data"]["doc_id"] == doc_id
         assert data["data"]["title"] == "详情测试文档"
+        assert len(data["data"]["chunks"]) > 0
+        assert "文档详情测试内容" in data["data"]["chunks"][0]["content"]

@@ -54,7 +54,11 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
     doc = service.get_document(doc_id, tenant_id)
     if doc is None:
         return {"code": 4041, "message": "文档未找到", "data": None}
-    return success(doc.to_dict())
+    payload = doc.to_dict()
+    payload["chunks"] = [
+        chunk.to_dict() for chunk in service.store.get_chunks(doc_id)
+    ]
+    return success(payload)
 
 
 @router.delete("/documents/{doc_id}")
