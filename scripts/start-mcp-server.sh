@@ -1,6 +1,6 @@
 #!/bin/bash
 # 观心 v2 MCP Server 启动脚本
-# 启动内置的天气查询 MCP Server
+# 启动供外部客户端调用的观心 MCP 网关
 
 set -e
 
@@ -26,7 +26,13 @@ elif [ -f "$VENV_DIR/Scripts/activate" ]; then
     source "$VENV_DIR/Scripts/activate"
 fi
 
-log_info "启动 MCP Server (weather)..."
+if [ -z "${GUANXIN_API_KEY:-}" ]; then
+    log_warn "缺少 GUANXIN_API_KEY；请先从 /api/auth/api-keys 获取并导出"
+    exit 2
+fi
+
+log_info "启动 MCP Server (guanxin gateway)..."
+log_info "上游 API: ${GUANXIN_API_BASE_URL:-http://127.0.0.1:8000/api}"
 log_info "MCP Server 通过 stdio 通信，无 HTTP 端口"
 
-exec python -m app.mcp.weather_server
+exec python -m app.mcp.gateway_server

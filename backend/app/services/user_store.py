@@ -4,10 +4,10 @@ import json
 import os
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
-DATA_FILE = os.path.join(DATA_DIR, "users.json")
+DEFAULT_DATA_FILE = Path(__file__).resolve().parents[2] / "data" / "users.json"
 _lock = threading.Lock()
 
 # Seed users
@@ -39,20 +39,27 @@ _DEFAULT_USERS = [
 ]
 
 
+def _data_file() -> Path:
+    """Return the configured demo-user data file."""
+    return Path(os.environ.get("USER_DATA_PATH", str(DEFAULT_DATA_FILE))).expanduser()
+
+
 def _load() -> list[dict]:
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if not os.path.exists(DATA_FILE):
+    data_file = _data_file()
+    data_file.parent.mkdir(parents=True, exist_ok=True)
+    if not data_file.exists():
         _save(_DEFAULT_USERS)
     try:
-        with open(DATA_FILE, "r") as f:
+        with data_file.open("r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
         return list(_DEFAULT_USERS)
 
 
 def _save(users: list[dict]) -> None:
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(DATA_FILE, "w") as f:
+    data_file = _data_file()
+    data_file.parent.mkdir(parents=True, exist_ok=True)
+    with data_file.open("w", encoding="utf-8") as f:
         json.dump(users, f, ensure_ascii=False, indent=2)
 
 
