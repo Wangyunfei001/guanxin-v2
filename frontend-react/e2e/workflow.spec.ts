@@ -1,11 +1,9 @@
 import { expect, test } from "@playwright/test"
 
-test("persistent workflow shows plan, collects input and survives refresh", async ({ page }) => {
-  await page.goto("/login")
-  await page.getByLabel("用户名").fill("admin")
-  await page.getByLabel("密码").fill("admin123")
-  await page.getByRole("button", { name: "进入工作空间", exact: true }).click()
-  await expect(page).toHaveURL(/\/assistant$/)
+import { login } from "./helpers"
+
+test("persistent workflow collects input, executes approval and survives refresh", async ({ page }) => {
+  await login(page)
 
   const token = await page.evaluate(() => localStorage.getItem("access_token"))
   expect(token).toBeTruthy()
@@ -32,6 +30,7 @@ test("persistent workflow shows plan, collects input and survives refresh", asyn
   expect(updateResponse.ok()).toBeTruthy()
 
   let conversationId: string | undefined
+  let createdUserId: string | undefined
   try {
     const conversationResponse = await page.request.post("/api/agent/conversations", {
       headers,
@@ -39,10 +38,11 @@ test("persistent workflow shows plan, collects input and survives refresh", asyn
     })
     expect(conversationResponse.ok()).toBeTruthy()
     const conversation = (await conversationResponse.json()).data
-    conversationId = conversation.id
+    conversationId = conversation.conversation_id
+    expect(conversationId).toBeTruthy()
     await page.evaluate((conversationId) => {
       localStorage.setItem("guanxin_active_conversation", conversationId)
-    }, conversation.id)
+    }, conversation.conversation_id)
     await page.reload()
     await expect(page.getByRole("button", { name: "Playwright 工作流" }).first()).toBeVisible()
 
@@ -81,25 +81,43 @@ test("persistent workflow shows plan, collects input and survives refresh", asyn
     await expect(sendButton).toBeDisabled()
     await expect(attachmentButton).toBeDisabled()
     await expect(researchMode).toBeDisabled()
-    await page.getByPlaceholder("用户名（登录名）").fill("playwright-user")
-    await page.getByPlaceholder("邮箱地址").fill("playwright@example.com")
+    const workflowUsername = `playwright-user-${Date.now()}`
+    await page.getByPlaceholder("用户名（登录名）").fill(workflowUsername)
+    await page.getByPlaceholder("邮箱地址").fill(`${workflowUsername}@example.com`)
     await page.getByRole("button", { name: "提交并继续" }).click()
 
     await expect(workflowTrack).toHaveCount(1)
     await expect(page.getByText("1 tool call", { exact: true })).toHaveCount(0)
     await expect(page.getByText("确认执行：创建用户")).toBeVisible()
     await expect(page.getByText("响应已提交，工作流正在继续。")).toHaveCount(0)
-    await page.locator('[data-slot="workflow-track"]').getByRole("button", { name: "取消流程" }).click()
+    await page.getByRole("button", { name: "批准执行" }).click()
     await expect(workflowTrack).toHaveCount(1)
-    await expect(page.getByText("已取消", { exact: true }).first()).toBeVisible()
+    await expect(page.getByText("已完成", { exact: true }).first()).toBeVisible()
     await expect(page.locator('[data-slot="workflow-control"]')).toHaveCount(0)
     await expect(page.getByText("响应已提交，工作流正在继续。")).toHaveCount(0)
+
+    const queryResponse = await page.request.post("/api/skills/execute", {
+      headers,
+      data: {
+        skill_name: "query_users",
+        params: { keyword: workflowUsername },
+      },
+    })
+    const users = (await queryResponse.json()).data.output.users
+    expect(users).toHaveLength(1)
+    createdUserId = users[0].user_id
 
     await page.reload()
     await expect(workflowTrack).toHaveCount(1)
     await expect(page.getByText("创建一个用户", { exact: true }).first()).toBeVisible()
-    await expect(page.getByText("已取消", { exact: true }).first()).toBeVisible()
+    await expect(page.getByText("已完成", { exact: true }).first()).toBeVisible()
   } finally {
+    if (createdUserId) {
+      await page.request.post("/api/skills/execute", {
+        headers,
+        data: { skill_name: "delete_user", params: { user_id: createdUserId } },
+      })
+    }
     if (conversationId) {
       await page.request.delete(`/api/agent/conversations/${conversationId}`, { headers })
     }

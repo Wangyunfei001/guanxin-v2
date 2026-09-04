@@ -3,7 +3,11 @@
 测试组件目录、模板列表、渲染和 Schema 校验。
 """
 
+import json
+
 import pytest
+
+from app.a2ui.renderer import generate_for_tool_result
 
 
 class TestA2UICatalog:
@@ -205,6 +209,45 @@ class TestA2UIRender:
         data = response.json()
         assert data["code"] == 0
         assert len(data["data"]["children"]) == 1
+
+
+class TestToolResultA2UI:
+    """Agent 工具输出应自动转换为可渲染 Schema。"""
+
+    def test_direct_data_analysis_skill_generates_chart(self):
+        output = json.dumps(
+            {
+                "success": True,
+                "output": {
+                    "count": 3,
+                    "mean": 2,
+                    "chart_data": {
+                        "type": "bar",
+                        "labels": ["第1项", "第2项", "第3项"],
+                        "values": [1, 2, 3],
+                    },
+                },
+            }
+        )
+
+        schema = generate_for_tool_result(
+            "skill__data_analysis",
+            {"data": [1, 2, 3], "analysis_type": "full"},
+            output,
+        )
+
+        assert schema is not None
+        assert schema["props"]["title"] == "技能执行结果：data_analysis"
+        assert schema["children"][0]["component_type"] == "chart_card"
+
+    def test_json_encoded_knowledge_output_has_no_spurious_row(self):
+        output = json.dumps("【片段 1】来源: demo.pdf | 相关度: 0.88\n验收内容")
+
+        schema = generate_for_tool_result("kb_retrieval", {}, output)
+
+        assert schema is not None
+        assert len(schema["props"]["rows"]) == 1
+        assert schema["props"]["rows"][0]["filename"] == "demo.pdf"
 
 
 class TestA2UIValidate:

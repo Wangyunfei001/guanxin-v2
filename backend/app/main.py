@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import __version__
 from app.api.router import api_router
 from app.config import settings
 from app.core.database import get_chroma_client
@@ -112,7 +113,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         description="AI Agent 全栈 Demo 系统",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
 
@@ -133,7 +134,9 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health_check():
         """健康检查端点。"""
-        return success({"status": "ok", "service": settings.app_name})
+        return success(
+            {"status": "ok", "service": settings.app_name, "version": __version__}
+        )
 
     # 根路径
     @app.get("/")
@@ -142,7 +145,7 @@ def create_app() -> FastAPI:
         return success(
             {
                 "service": settings.app_name,
-                "version": "0.1.0",
+                "version": __version__,
                 "docs": "/docs",
                 "health": "/health",
             }

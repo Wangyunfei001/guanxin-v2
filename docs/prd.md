@@ -1,8 +1,8 @@
 # 观心 v2 全功能 Demo PRD
 
-> 版本：v1.0
-> 日期：2026-07-10
-> 状态：Persistent Workflow Demo 实施完成（2026-08-20）
+> 版本：v0.2.0-demo
+> 日期：2026-09-04
+> 状态：v0.2.0-demo 已验收
 > 作者：产品经理 许清楚
 
 ---
@@ -168,7 +168,7 @@
 | ID | 优先级 | 需求描述 | 验收标准 |
 |----|--------|---------|---------|
 | A2UI-001 | P0 | 组件目录定义：定义表单、卡片、列表、确认框四类基础组件 | 每类组件有 JSON schema 定义 |
-| A2UI-002 | P0 | 动态渲染引擎：接收 JSON schema，按 Catalog 动态渲染对应 Vue 组件 | 前端可渲染任意合法 schema |
+| A2UI-002 | P0 | 动态渲染引擎：接收 JSON schema，按 Catalog 动态渲染对应 React 组件 | 前端可渲染任意合法 schema |
 | A2UI-003 | P0 | Fixed Schema 模式：预定义组件树，Agent 填充数据 | Agent 返回带数据的固定 schema |
 | A2UI-004 | P0 | Agent 返回 A2UI：Agent 可在回复中附带 A2UI 操作指令 | 对话中出现渲染后的卡片组件 |
 | A2UI-005 | P1 | Dynamic Schema 模式：Agent 动态组装组件树 | Agent 根据上下文动态选择组件组合 |
@@ -226,7 +226,7 @@
 | MCP 协议集成 | MCP Server 连接配置、工具调用请求 | MCP 客户端连接/工具发现/工具调用、MCP 服务端工具暴露 | 工具列表、工具调用结果 | 不做 MCP 协议的非标准扩展；不做 MCP Server 的权限管理 |
 | Skill 技能系统 | Skill 插件文件、执行参数、编排定义 | Skill 注册/发现/执行/编排 | Skill 执行结果 | 不做 Skill 的可视化编排（P2）；不做 Skill 市场（在线分发）；不做 Skill 沙箱隔离 |
 | 服务端 | HTTP 请求、SSE 连接 | API 网关、认证鉴权、流式响应、多租户隔离 | RESTful JSON 响应、SSE 流 | 不做微服务拆分；不做消息队列；不做分布式部署 |
-| A2UI Catalog | Agent 返回的 JSON schema | 组件定义管理、schema 解析、动态渲染 | 渲染后的 Vue 组件 | 不做组件主题定制（P2）；不做组件市场（在线分发）；不做完整的低代码搭建能力 |
+| A2UI Catalog | Agent 返回的 JSON schema | 组件定义管理、schema 解析、动态渲染 | 渲染后的 React 组件 | 不做组件主题定制（P2）；不做组件市场（在线分发）；不做完整的低代码搭建能力 |
 | 前端展示层 | 用户交互、后端 API 响应 | 对话交互、管理面板、A2UI 渲染、状态管理 | 用户可见的 UI 界面 | 不做 SSR；不做 PWA；不做完整的权限管理 UI（仅基础 RBAC 展示） |
 
 ### 4.2 模块间数据流
@@ -341,13 +341,27 @@
 | 层 | 技术选型 | 说明 |
 |----|---------|------|
 | 后端 | Python 3.11+ / FastAPI | AI 生态最成熟，LangChain/LlamaIndex/MCP SDK 官方支持 |
-| 前端 | Vue 3 / Vite / Ant Design Vue / Pinia / TypeScript | 组件库完善，类型安全 |
+| 前端 | React 19 / Next.js 15 / TypeScript / assistant-ui / Zustand | AI SDK UIMessage 流，组件与状态持久化 |
 | 向量存储 | ChromaDB | 轻量本地部署，适合 Demo |
 | LLM 接入 | OpenAI 兼容接口 | 可接 OpenAI / DeepSeek / Qwen 等任意兼容模型 |
-| Agent 框架 | LangChain / LangGraph（建议） | ReAct 模式、工具调用、流式输出原生支持 |
-| MCP SDK | mcp 官方 Python SDK | stdio + SSE 传输支持 |
+| Agent 框架 | LangChain / LangGraph | Supervisor、工具调用与持久化工作流 |
+| MCP SDK | mcp 官方 Python SDK | 本轮仅交付 stdio |
 | 仓库位置 | /Users/wyf/workspace/aicoding/guanxin-v2 | 独立仓库，与 guanxin-sdk 同级 |
 
 ---
 
-*本文档为 Draft 状态，待团队评审后定稿。下一步交由架构师高见远进行系统设计与任务分解。*
+## v0.2.0-demo 交付与延期矩阵
+
+上述需求池保留产品规划含义，不代表每一项均已交付。本轮以此矩阵及 [验收报告](releases/v0.2.0-demo-acceptance.md) 为准。
+
+| 范围 | 本轮交付 | 延期或边界 |
+|---|---|---|
+| 知识库 | PDF 文本层、DOCX、TXT/Markdown 上传，切片预览，向量 top-k，租户隔离，删除 | OCR、混合关键词检索、score 阈值、标签、批量删除/重建及语义切片延期 |
+| Agent | Supervisor、只读工具循环、会话历史、租户级配置、Quick/Deep Research | 不承诺首 token <1s；多 Agent 切换与高级上下文管理延期 |
+| MCP | 外部天气客户端；对外知识检索、文本摘要、数据分析三个固定只读工具 | 不开放通用 Skill 执行器；远程 SSE/HTTP MCP 延期 |
+| Skill/工作流 | 内置技能、最多 16 步线性流程、补参、审批、恢复与幂等执行 | 热加载、多版本、条件分支、并行 DAG、拖拽编排延期 |
+| 服务端 | JWT/API Key、RBAC、SQLite/checkpoint、Chroma | users JSON 是管理型 Demo 数据；登录账号与 Key 仍为进程内预设数据，账号数据库迁移延期 |
+| A2UI/前端 | React 19/Next.js 15；五类卡片、图表、Schema 预览、导航、暗色主题 | 通用组件回调和自定义组件市场延期；工作流交互有专用协议 |
+| 基础设施 | 启动脚本、隔离测试、全量 CI、操作手册与发布材料 | 生产部署、Docker 交付、审计日志和限流延期 |
+
+本页记录已完成的功能验收。实际发布还必须通过最终 PR 和合并提交的 main 全量 CI，再创建发布标签；运行记录与边界见 [验收报告](releases/v0.2.0-demo-acceptance.md)。

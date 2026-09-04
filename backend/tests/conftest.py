@@ -14,20 +14,20 @@ backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 # 设置测试环境变量
-os.environ.setdefault("APP_ENV", "test")
-os.environ.setdefault("OPENAI_API_KEY", "")
+os.environ["APP_ENV"] = "test"
+os.environ["OPENAI_API_KEY"] = ""
 os.environ["EMBEDDING_PROVIDER"] = "openai"
 os.environ["EMBEDDING_API_KEY"] = ""
-os.environ.setdefault("CHROMA_PERSIST_DIR", tempfile.mkdtemp(prefix="chroma_test_"))
-os.environ.setdefault("UPLOAD_DIR", tempfile.mkdtemp(prefix="uploads_test_"))
-os.environ.setdefault(
-    "DATABASE_PATH",
-    str(Path(tempfile.mkdtemp(prefix="sqlite_test_")) / "guanxin-test.db"),
-)
-os.environ.setdefault(
-    "CHECKPOINT_DATABASE_PATH",
-    str(Path(tempfile.mkdtemp(prefix="checkpoint_test_")) / "checkpoints-test.db"),
-)
+_test_directory = tempfile.TemporaryDirectory(prefix="guanxin-pytest-")
+_test_root = Path(_test_directory.name)
+for _setting, _relative in {
+    "CHROMA_PERSIST_DIR": "chroma",
+    "UPLOAD_DIR": "uploads",
+    "DATABASE_PATH": "guanxin.db",
+    "CHECKPOINT_DATABASE_PATH": "checkpoints.db",
+    "USER_DATA_PATH": "users.json",
+}.items():
+    os.environ[_setting] = str(_test_root / _relative)
 
 
 @pytest.fixture(scope="session")

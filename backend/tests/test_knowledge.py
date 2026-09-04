@@ -2,6 +2,8 @@
 
 import io
 import pytest
+from docx import Document
+from reportlab.pdfgen import canvas
 
 
 class TestKnowledge:
@@ -30,6 +32,58 @@ class TestKnowledge:
         assert data["data"]["filename"] == "test_upload.txt"
         assert data["data"]["status"] == "ready"
         assert data["data"]["chunk_count"] > 0
+
+    def test_upload_pdf_document(self, test_client, admin_headers):
+        """PDF 文本应被真实提取并进入切片。"""
+        buffer = io.BytesIO()
+        pdf = canvas.Canvas(buffer)
+        pdf.drawString(72, 720, "Guanxin PDF acceptance code ORION-4729")
+        pdf.save()
+        buffer.seek(0)
+
+        response = test_client.post(
+            "/api/knowledge/documents/upload",
+            headers=admin_headers,
+            files={"file": ("acceptance.pdf", buffer, "application/pdf")},
+            data={"title": "PDF acceptance"},
+        )
+
+        assert response.status_code == 200
+        document = response.json()["data"]
+        assert document["status"] == "ready"
+        detail = test_client.get(
+            f"/api/knowledge/documents/{document['doc_id']}", headers=admin_headers
+        ).json()["data"]
+        assert "ORION-4729" in detail["chunks"][0]["content"]
+
+    def test_upload_docx_document(self, test_client, admin_headers):
+        """DOCX 段落应被真实提取并进入切片。"""
+        buffer = io.BytesIO()
+        document = Document()
+        document.add_paragraph("Guanxin DOCX acceptance code LUNA-3021")
+        document.save(buffer)
+        buffer.seek(0)
+
+        response = test_client.post(
+            "/api/knowledge/documents/upload",
+            headers=admin_headers,
+            files={
+                "file": (
+                    "acceptance.docx",
+                    buffer,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+            data={"title": "DOCX acceptance"},
+        )
+
+        assert response.status_code == 200
+        document_data = response.json()["data"]
+        assert document_data["status"] == "ready"
+        detail = test_client.get(
+            f"/api/knowledge/documents/{document_data['doc_id']}", headers=admin_headers
+        ).json()["data"]
+        assert "LUNA-3021" in detail["chunks"][0]["content"]
 
     def test_retrieve(self, test_client, admin_headers):
         """测试知识库检索。"""
@@ -139,3 +193,5 @@ class TestKnowledge:
         assert data["code"] == 0
         assert data["data"]["doc_id"] == doc_id
         assert data["data"]["title"] == "详情测试文档"
+        assert len(data["data"]["chunks"]) > 0
+        assert "文档详情测试内容" in data["data"]["chunks"][0]["content"]

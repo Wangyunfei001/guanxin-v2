@@ -3,6 +3,8 @@
 测试技能列表、详情、执行和 DAG 编排。
 """
 
+import json
+
 import pytest
 
 from app.models.skill_context import SkillContext
@@ -245,3 +247,17 @@ class TestSkillOrchestration:
         skill_names = [s.name for s in skills]
         assert "data_analysis" in skill_names
         assert "text_summary" in skill_names
+
+
+def test_user_store_uses_configured_data_path(tmp_path, monkeypatch):
+    """写 Skill 必须服从 USER_DATA_PATH，避免测试污染演示数据。"""
+    from app.services import user_store
+
+    target = tmp_path / "isolated" / "users.json"
+    monkeypatch.setenv("USER_DATA_PATH", str(target))
+    created = user_store.create_user("isolated-user", "isolated@example.com")
+
+    assert target.exists()
+    stored = json.loads(target.read_text(encoding="utf-8"))
+    assert stored[-1]["user_id"] == created["user_id"]
+    assert stored[-1]["username"] == "isolated-user"

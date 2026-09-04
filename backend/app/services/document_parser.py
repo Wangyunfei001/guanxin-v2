@@ -1,8 +1,4 @@
-"""文档解析模块。
-
-支持 txt, md, json 文件的文本提取。
-对于其他格式提供基本的占位解析。
-"""
+"""文档解析模块。"""
 
 from pathlib import Path
 from typing import Optional
@@ -27,6 +23,10 @@ def parse_file(file_path: str, file_type: str = "") -> str:
 
     if file_type in ("txt", "md", "markdown"):
         return _parse_text(path)
+    elif file_type == "pdf":
+        return _parse_pdf(path)
+    elif file_type == "docx":
+        return _parse_docx(path)
     elif file_type == "json":
         return _parse_json(path)
     elif file_type in ("csv",):
@@ -63,6 +63,34 @@ def _parse_json(path: Path) -> str:
 def _parse_csv(path: Path) -> str:
     """解析 CSV 文件，返回文本。"""
     return _parse_text(path)
+
+
+def _parse_pdf(path: Path) -> str:
+    """提取 PDF 中每一页的文本。"""
+    from pypdf import PdfReader
+
+    try:
+        pages = (page.extract_text() or "" for page in PdfReader(path).pages)
+        return "\n\n".join(text.strip() for text in pages if text.strip())
+    except Exception:
+        return ""
+
+
+def _parse_docx(path: Path) -> str:
+    """提取 DOCX 的段落与表格文本。"""
+    from docx import Document
+
+    try:
+        document = Document(path)
+        blocks = [paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()]
+        for table in document.tables:
+            for row in table.rows:
+                cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                if cells:
+                    blocks.append("\t".join(cells))
+        return "\n".join(blocks)
+    except Exception:
+        return ""
 
 
 def detect_file_type(filename: str) -> str:
