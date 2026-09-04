@@ -1,6 +1,6 @@
 # 观心 v2
 
-封版目标：`v0.2.0-demo`，应用版本 `0.2.0`。发布状态与真实场景记录见 [验收报告](docs/releases/v0.2.0-demo-acceptance.md)，演示步骤见 [Demo 操作手册](docs/demo-guide.md)。
+交付版本：`v0.2.0-demo`，应用版本 `0.2.0`。发布状态与真实场景记录见 [验收报告](docs/releases/v0.2.0-demo-acceptance.md)，演示步骤见 [Demo 操作手册](docs/demo-guide.md)。
 
 观心 v2 是一个面向稳定演示的多租户 AI Agent 全栈项目。当前主链路使用 FastAPI、LangGraph、SQLite、ChromaDB、Next.js 15、React 19、AI SDK 与 assistant-ui。
 
