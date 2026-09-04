@@ -151,7 +151,7 @@ export default function KnowledgePage() {
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept=".txt,.md,.json,.csv,.py,.js,.ts"
+        accept=".pdf,.docx,.txt,.md,.json,.csv,.py,.js,.ts"
         onChange={handleUpload}
       />
 
@@ -195,7 +195,7 @@ export default function KnowledgePage() {
             <EmptyState
               icon={FileText}
               title="知识库还是空的"
-              description="上传 TXT、Markdown、JSON、CSV 或代码文件，系统会自动解析、切片并建立本地向量索引。"
+              description="上传文本 PDF、DOCX、TXT、Markdown、JSON、CSV 或代码文件，系统会自动解析、切片并建立本地向量索引。"
               action={
                 <Button size="sm" onClick={() => fileInputRef.current?.click()}>
                   <UploadSimple size={15} />

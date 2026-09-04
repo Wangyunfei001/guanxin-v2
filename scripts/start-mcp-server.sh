@@ -14,8 +14,8 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_info() { echo -e "${GREEN}[INFO]${NC} $1" >&2; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1" >&2; }
 
 cd "$BACKEND_DIR"
 
@@ -35,4 +35,4 @@ log_info "启动 MCP Server (guanxin gateway)..."
 log_info "上游 API: ${GUANXIN_API_BASE_URL:-http://127.0.0.1:8000/api}"
 log_info "MCP Server 通过 stdio 通信，无 HTTP 端口"
 
-exec python -m app.mcp.gateway_server
+exec "$PYTHON_CMD" -m app.mcp.gateway_server

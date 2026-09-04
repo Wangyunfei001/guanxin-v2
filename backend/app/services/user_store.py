@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from app.config import settings
+
 DEFAULT_DATA_FILE = Path(__file__).resolve().parents[2] / "data" / "users.json"
 _lock = threading.Lock()
 
@@ -41,7 +43,8 @@ _DEFAULT_USERS = [
 
 def _data_file() -> Path:
     """Return the configured demo-user data file."""
-    return Path(os.environ.get("USER_DATA_PATH", str(DEFAULT_DATA_FILE))).expanduser()
+    configured = Path(os.environ.get("USER_DATA_PATH", settings.user_data_path)).expanduser()
+    return configured if configured.is_absolute() else DEFAULT_DATA_FILE.parents[1] / configured
 
 
 def _load() -> list[dict]:

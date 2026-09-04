@@ -50,6 +50,7 @@ env/
 # ===== Node.js =====
 node_modules/
 .next/
+.next-*/
 *.tsbuildinfo
 coverage/
 .playwright-cli/

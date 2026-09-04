@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 import time
+from pathlib import Path
 from collections.abc import Callable
 from typing import Any
 
@@ -183,7 +184,8 @@ def _wait_for_api(base_url: str, process: subprocess.Popen[str]) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stdio_protocol_lists_and_calls_all_tools() -> None:
+@pytest.mark.parametrize("use_launcher", [False, True])
+async def test_stdio_protocol_lists_and_calls_all_tools(use_launcher: bool) -> None:
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
@@ -217,8 +219,11 @@ async def test_stdio_protocol_lists_and_calls_all_tools() -> None:
             }
         )
         params = StdioServerParameters(
-            command=sys.executable,
-            args=["-m", "app.mcp.gateway_server"],
+            command=(
+                str(Path(__file__).resolve().parents[2] / "scripts/start-mcp-server.sh")
+                if use_launcher else sys.executable
+            ),
+            args=[sys.executable] if use_launcher else ["-m", "app.mcp.gateway_server"],
             env=env,
         )
         async with stdio_client(params) as (read, write):

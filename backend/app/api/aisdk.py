@@ -229,7 +229,7 @@ async def _stream_research(
         catalog=catalog,
     ):
         final_snapshot = snapshot
-        yield _aisdk_event("data-research", data=snapshot)
+        yield _aisdk_event("data-research", id=snapshot["run_id"], data=snapshot)
 
     report = str(final_snapshot.get("report") or "")
     if not report and final_snapshot.get("status") == "cancelled":
@@ -237,7 +237,11 @@ async def _stream_research(
     if not report and final_snapshot.get("error"):
         report = f"研究未完成：{final_snapshot['error']}"
     parts: list[dict[str, Any]] = [
-        {"type": "data-research", "data": final_snapshot}
+        {
+            "type": "data-research",
+            "id": final_snapshot.get("run_id", ""),
+            "data": final_snapshot,
+        }
     ]
     if report:
         parts.append({"type": "text", "text": report})

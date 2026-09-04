@@ -38,10 +38,11 @@ test("persistent workflow collects input, executes approval and survives refresh
     })
     expect(conversationResponse.ok()).toBeTruthy()
     const conversation = (await conversationResponse.json()).data
-    conversationId = conversation.id
+    conversationId = conversation.conversation_id
+    expect(conversationId).toBeTruthy()
     await page.evaluate((conversationId) => {
       localStorage.setItem("guanxin_active_conversation", conversationId)
-    }, conversation.id)
+    }, conversation.conversation_id)
     await page.reload()
     await expect(page.getByRole("button", { name: "Playwright 工作流" }).first()).toBeVisible()
 

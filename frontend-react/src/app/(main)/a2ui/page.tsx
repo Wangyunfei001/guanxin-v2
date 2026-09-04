@@ -33,7 +33,7 @@ function getSampleSchema(type: string): A2UISchema {
         content: "这是一个示例信息卡片",
         items: [
           { label: "名称", value: "观心 v2" },
-          { label: "版本", value: "0.1.0" },
+          { label: "版本", value: "0.2.0" },
         ],
       },
     },

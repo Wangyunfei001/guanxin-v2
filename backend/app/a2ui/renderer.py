@@ -89,6 +89,11 @@ def generate_for_tool_result(
         return _generate_kb_result_a2ui(tool_output)
     elif tool_name == "skill_execute":
         return _generate_skill_result_a2ui(tool_input, tool_output)
+    elif tool_name.startswith("skill__"):
+        return _generate_skill_result_a2ui(
+            {**tool_input, "skill_name": tool_name.removeprefix("skill__")},
+            tool_output,
+        )
     else:
         # 通用信息卡片
         return _generate_generic_info_a2ui(tool_name, tool_input, tool_output)
@@ -96,6 +101,12 @@ def generate_for_tool_result(
 
 def _generate_kb_result_a2ui(output: str) -> Optional[Dict[str, Any]]:
     """从知识库检索结果生成 ListCard。"""
+    try:
+        decoded = json.loads(output)
+        if isinstance(decoded, str):
+            output = decoded
+    except (json.JSONDecodeError, TypeError):
+        pass
     results = _parse_kb_results(output)
     if not results:
         return None
