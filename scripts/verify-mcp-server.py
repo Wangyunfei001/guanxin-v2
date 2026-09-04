@@ -25,7 +25,9 @@ async def main() -> None:
     )
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
-            await session.initialize()
+            initialized = await session.initialize()
+            if initialized.serverInfo.version != "0.2.0":
+                raise RuntimeError("unexpected Guanxin MCP application version")
             tools = await session.list_tools()
             names = [tool.name for tool in tools.tools]
             if names != EXPECTED_TOOLS:

@@ -10,6 +10,8 @@ from typing import Any, Mapping, Sequence
 
 import httpx
 
+from app import __version__
+
 
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8000/api"
 REQUEST_TIMEOUT = httpx.Timeout(30.0, connect=5.0)
@@ -150,7 +152,7 @@ def create_server(api: GuanxinApiClient):
     from mcp.server import Server
     from mcp.types import Tool, ToolAnnotations
 
-    server = Server("guanxin-v2-gateway")
+    server = Server("guanxin-v2-gateway", version=__version__)
     read_only = ToolAnnotations(
         readOnlyHint=True,
         destructiveHint=False,

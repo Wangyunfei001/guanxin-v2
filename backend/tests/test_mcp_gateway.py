@@ -228,7 +228,8 @@ async def test_stdio_protocol_lists_and_calls_all_tools(use_launcher: bool) -> N
         )
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
-                await session.initialize()
+                initialized = await session.initialize()
+                assert initialized.serverInfo.version == "0.2.0"
                 listed = await session.list_tools()
                 assert [tool.name for tool in listed.tools] == [
                     "knowledge_retrieve",
