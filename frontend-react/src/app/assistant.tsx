@@ -291,7 +291,7 @@ export default function Assistant() {
       </AnimatePresence>
 
       <section className="relative min-w-0 flex-1 overflow-hidden bg-background">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(circle_at_50%_-30%,hsl(var(--primary)/0.11),transparent_66%)]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-full bg-[radial-gradient(circle_at_50%_-30%,hsl(var(--primary)/0.11),transparent_66%)]" />
         <div className="absolute left-3 top-3 z-20 flex gap-1.5 lg:hidden">
           <Button
             size="icon"

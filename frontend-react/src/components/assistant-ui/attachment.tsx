@@ -19,6 +19,7 @@ import { useShallow } from "zustand/shallow";
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
@@ -173,7 +174,8 @@ const AttachmentUI: FC = () => {
   );
 
   return (
-    <Tooltip>
+    <TooltipProvider>
+      <Tooltip>
       <AttachmentPrimitive.Root
         className={cn(
           "aui-attachment-root relative",
@@ -223,7 +225,8 @@ const AttachmentUI: FC = () => {
           <p className="aui-attachment-error-message">{errorMessage}</p>
         )}
       </TooltipContent>
-    </Tooltip>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
@@ -265,7 +268,7 @@ export const ComposerAddAttachment: FC<{ disabled?: boolean }> = ({
   disabled = false,
 }) => {
   return (
-    <ComposerPrimitive.AddAttachment asChild>
+    <ComposerPrimitive.AddAttachment asChild disabled={disabled}>
       <TooltipIconButton
         tooltip="Add Attachment"
         side="bottom"
@@ -273,7 +276,6 @@ export const ComposerAddAttachment: FC<{ disabled?: boolean }> = ({
         size="icon"
         className="aui-composer-add-attachment size-8 rounded-full p-1 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted"
         aria-label="Add Attachment"
-        {...(disabled ? { disabled: true } : {})}
       >
         <PlusIcon className="aui-attachment-add-icon size-4.5 stroke-[1.5px]" />
       </TooltipIconButton>

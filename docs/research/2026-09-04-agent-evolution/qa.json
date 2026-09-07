@@ -1,0 +1,11 @@
+{
+  "pages": 13,
+  "visual_review": "all 13 pages inspected at rendered full-page resolution; no clipping, overlap, missing Chinese glyphs or broken tables observed",
+  "links": 41,
+  "unique_link_targets": 31,
+  "local_source_links": "all exist",
+  "text_and_geometry": "pass",
+  "bytes": 494566,
+  "sha256": "6a0a045bf487755ac07af8097334c264e0e6af77f7d3f6878c23e4fb08bd8666",
+  "limits": "Frameworks not executed; current app test suite not rerun; report is recommendation."
+}
