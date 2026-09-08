@@ -61,6 +61,10 @@ export const agentApi = {
     return client.delete(`/agent/conversations/${conversationId}`)
   },
 
+  respondWorkflow(runId: string, interruptId: string, accepted: boolean, values: Record<string, unknown>): Promise<ApiResponse<WorkflowData>> {
+    return client.post(`/agent/workflows/${runId}/respond`, { interrupt_id: interruptId, accepted, values })
+  },
+
   getWorkflow(runId: string): Promise<ApiResponse<WorkflowData>> {
     return client.get(`/agent/workflows/${runId}`)
   },

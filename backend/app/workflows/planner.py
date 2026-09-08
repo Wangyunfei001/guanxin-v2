@@ -7,8 +7,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.agent.graph import _create_llm
-from app.agent.nodes.intent_parser import _regex_classify
+from app.agent.llm import _create_llm
+from app.workflows.intent import _regex_classify
 from app.models.agent import AgentConfig
 from app.workflows.catalog import WorkflowToolError, normalize_arguments
 from app.workflows.models import WorkflowPlan, WorkflowPlanStep, WorkflowTool

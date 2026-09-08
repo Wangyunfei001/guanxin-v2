@@ -26,6 +26,7 @@ interface WorkflowField {
 }
 
 interface WorkflowControlProps {
+  busy?: boolean
   args: {
     run_id?: string
     kind?: "input" | "approval"
@@ -55,6 +56,7 @@ function coerce(field: WorkflowField, raw: string): unknown {
 
 export const WorkflowControlRenderer: FC<WorkflowControlProps> = ({
   args,
+  busy = false,
   approval,
   respondToApproval,
   result,
@@ -125,7 +127,7 @@ export const WorkflowControlRenderer: FC<WorkflowControlProps> = ({
       <CardFooter className="gap-2">
         <Button
           size="sm"
-          disabled={needsInput && !valid}
+          disabled={busy || (needsInput && !valid)}
           onClick={() => respondToApproval?.({
             approved: true,
             reason: needsInput
@@ -135,7 +137,7 @@ export const WorkflowControlRenderer: FC<WorkflowControlProps> = ({
         >
           {needsInput ? "提交并继续" : "批准执行"}
         </Button>
-        <Button size="sm" variant="outline" onClick={() => respondToApproval?.({ approved: false, reason: "用户取消" })}>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => respondToApproval?.({ approved: false, reason: "用户取消" })}>
           取消流程
         </Button>
       </CardFooter>

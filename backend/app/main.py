@@ -41,6 +41,10 @@ async def lifespan(app: FastAPI):
     # 2. 初始化 ChromaDB
     logger.info("Initializing SQLite business database...")
     initialize_database()
+    from app.services.agent_run_store import initialize_agent_runs, recover_agent_runs
+
+    initialize_agent_runs()
+    recover_agent_runs()
 
     logger.info("Initializing LangGraph checkpoints...")
     await initialize_checkpointer()
@@ -105,6 +109,9 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("=== 观心 v2 关闭 ===")
+    from app.agent.thread_service import close_runs
+
+    await close_runs()
     await close_checkpointer()
 
 

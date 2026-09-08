@@ -118,7 +118,7 @@ class DeepSeekResearchProvider:
 
     def _get_planning_llm(self) -> Any:
         if self._planning_llm is None:
-            from app.agent.graph import _create_llm
+            from app.agent.llm import _create_llm
 
             self._planning_llm = _create_llm("deepseek-v4-pro", 0, 4096)
         return self._planning_llm

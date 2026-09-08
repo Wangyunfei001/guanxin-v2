@@ -1,4 +1,4 @@
-"""Unified Supervisor, Tool Catalog and persistent Research tests."""
+"""Tool Catalog and persistent Research tests."""
 
 from __future__ import annotations
 
@@ -9,8 +9,6 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
-from app.agent.supervisor import decide_route, deterministic_route
-from app.agent.executor import _execute_unified
 from app.agent.tool_catalog import CatalogEntry, ToolSpec, build_tool_catalog
 from app.models.agent import AgentConfig
 from app.models.tenant import User
@@ -23,136 +21,6 @@ from app.research.models import (
     SearchResult,
 )
 from app.services.research_store import canonicalize_url, get_research_store
-
-
-class WeatherArgs(BaseModel):
-    city: str
-
-
-async def _weather(city: str) -> dict:
-    return {"city": city, "temperature": 21}
-
-
-def _weather_entry() -> CatalogEntry:
-    tool = StructuredTool.from_function(
-        coroutine=_weather,
-        name="mcp__weather__get_weather",
-        description="查询模拟天气",
-        args_schema=WeatherArgs,
-    )
-    return CatalogEntry(
-        spec=ToolSpec(
-            name=tool.name,
-            display_name="模拟天气",
-            description="查询天气模拟数据",
-            input_schema=WeatherArgs.model_json_schema(),
-            source_type="mcp",
-            source_name="weather",
-            effect="read",
-            approval_required=False,
-        ),
-        tool=tool,
-    )
-
-
-def test_weather_route_uses_structured_mcp_tool() -> None:
-    decision = deterministic_route("北京市今天天气怎么样？", [_weather_entry()])
-    assert decision is not None
-    assert decision.route == "tool_loop"
-    assert decision.candidate_tools == ["mcp__weather__get_weather"]
-    assert _weather_entry().spec.input_schema["properties"]["city"]["type"] == "string"
-
-
-def test_sequence_words_no_longer_force_workflow() -> None:
-    decision = deterministic_route("介绍功能，然后说明优点", [])
-    assert decision is None
-
-
-@pytest.mark.asyncio
-async def test_explicit_deep_research_phrase_is_not_downgraded() -> None:
-    config = AgentConfig(agent_id="default", tenant_id="route", name="Route")
-    entry = CatalogEntry(
-        spec=ToolSpec(
-            name="deep_research",
-            display_name="Deep Research",
-            description="多来源研究",
-            source_type="provider",
-            source_name="deepseek",
-            effect="read",
-            approval_required=False,
-        )
-    )
-    decision = await decide_route(
-        "请深入研究这个行业",
-        config,
-        [entry],
-        research_mode="auto",
-    )
-    assert decision.route == "research"
-    assert decision.research_mode == "deep"
-
-
-class FakeToolLoopLlm:
-    def __init__(self) -> None:
-        self.calls = 0
-        self.tool_choices: list[str] = []
-
-    def bind_tools(self, tools, tool_choice="auto"):
-        self.tool_choices.append(tool_choice)
-        return self
-
-    async def ainvoke(self, messages):
-        self.calls += 1
-        if self.calls == 1:
-            return AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "name": "mcp__weather__get_weather",
-                        "args": {"city": "北京"},
-                        "id": "call-weather-stable",
-                        "type": "tool_call",
-                    }
-                ],
-            )
-        return AIMessage(content="北京模拟天气为 21°C。")
-
-
-@pytest.mark.asyncio
-async def test_tool_loop_persists_stable_structured_call() -> None:
-    suffix = uuid.uuid4().hex
-    conversation = get_conversation_store().create_conversation(
-        f"tenant-{suffix}",
-        f"user-{suffix}",
-        "default",
-    )
-    llm = FakeToolLoopLlm()
-    decision = deterministic_route("北京天气", [_weather_entry()])
-    assert decision is not None
-    events = []
-    async for event in _execute_unified(
-        user_message="北京天气",
-        conversation_id=conversation.conversation_id,
-        tenant_id=conversation.tenant_id,
-        system_prompt="测试",
-        llm=llm,
-        catalog=[_weather_entry()],
-        decision=decision,
-    ):
-        events.append(event)
-    assert llm.tool_choices[0] == "mcp__weather__get_weather"
-    assert any('"tool_call_id": "call-weather-stable"' in event for event in events)
-    assert any('\\"city\\": \\"北京\\"' in event for event in events)
-
-    restored = get_conversation_store().get_conversation(
-        conversation.conversation_id,
-        conversation.tenant_id,
-    )
-    assert restored is not None
-    assistant = restored.messages[-1]
-    tool_part = next(part for part in assistant.parts if part["type"].startswith("tool-"))
-    assert tool_part["toolCallId"] == "call-weather-stable"
-    assert tool_part["input"] == {"city": "北京"}
 
 
 @pytest.mark.asyncio

@@ -12,9 +12,9 @@ import {
   Warning,
   XCircle,
 } from "@phosphor-icons/react"
-import type { DataMessagePartProps } from "@assistant-ui/react"
 import { useEffect, useMemo, useState, type FC } from "react"
 
+import { WorkflowControlRenderer } from "./workflow-control"
 import { agentApi } from "@/lib/api/agent"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useWorkflowUiStore } from "@/lib/stores/workflow"
@@ -75,9 +75,10 @@ function statusBadgeVariant(status: string) {
   return "secondary" as const
 }
 
-export const WorkflowDataRenderer: FC<DataMessagePartProps<WorkflowData>> = ({ data }) => {
+export const WorkflowDataRenderer: FC<{ data: WorkflowData; onRefresh?: () => void }> = ({ data, onRefresh }) => {
   const [workflow, setWorkflow] = useState<WorkflowData>(data as WorkflowData)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
   const [summary, setSummary] = useState("")
   const isAdmin = useAuthStore((state) => state.isAdmin)
   const setStatus = useWorkflowUiStore((state) => state.setStatus)
@@ -123,7 +124,10 @@ export const WorkflowDataRenderer: FC<DataMessagePartProps<WorkflowData>> = ({ d
       const response = workflow.status === "uncertain"
         ? await agentApi.resolveWorkflow(workflow.run_id, action, summary)
         : await agentApi.cancelWorkflow(workflow.run_id)
-      if (response.code === 0) setWorkflow(response.data)
+      if (response.code === 0) { setWorkflow(response.data); onRefresh?.() }
+      else setError(response.message)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "操作失败，请重试")
     } finally {
       setBusy(false)
     }
@@ -250,6 +254,25 @@ export const WorkflowDataRenderer: FC<DataMessagePartProps<WorkflowData>> = ({ d
         )}
       </div>
 
+      {error && <p role="alert" className="p-4 text-sm text-destructive">{error}</p>}
+      {workflow.pending_interrupt && workflow.pending_interrupt.kind !== "recovery" && (
+        <div className="px-4 pt-4" aria-busy={busy}>
+          <WorkflowControlRenderer
+            key={workflow.pending_interrupt.interrupt_id}
+            args={{ ...workflow.pending_interrupt.payload, run_id: workflow.run_id, kind: workflow.pending_interrupt.kind }}
+            busy={busy}
+            respondToApproval={async ({ approved, reason }) => {
+              setBusy(true); setError("")
+              try {
+                const response = await agentApi.respondWorkflow(workflow.run_id, workflow.pending_interrupt!.interrupt_id, approved, approved && reason ? JSON.parse(reason) : {})
+                if (response.code !== 0) throw new Error(response.message)
+                setWorkflow(response.data); onRefresh?.()
+              } catch (error) { setError(error instanceof Error ? error.message : "操作失败，请重试") }
+              finally { setBusy(false) }
+            }}
+          />
+        </div>
+      )}
       {ACTIVE_STATUSES.has(workflow.status) && (
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/25 px-4 py-3 sm:px-5">
           <p className="text-[11px] text-muted-foreground">运行 ID {workflow.run_id.slice(0, 8)}</p>

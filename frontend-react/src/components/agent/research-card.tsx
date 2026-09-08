@@ -11,7 +11,6 @@ import {
   SpinnerGap,
   XCircle,
 } from "@phosphor-icons/react"
-import type { DataMessagePartProps } from "@assistant-ui/react"
 import { useEffect, useMemo, useState, type FC } from "react"
 
 import { Badge } from "@/components/ui/badge"
@@ -41,7 +40,7 @@ const TaskIcon: FC<{ task: ResearchTask }> = ({ task }) => {
   return <Circle size={16} className="text-muted-foreground/50" />
 }
 
-export const ResearchDataRenderer: FC<DataMessagePartProps<ResearchData>> = ({ data }) => {
+export const ResearchDataRenderer: FC<{ data: ResearchData }> = ({ data }) => {
   const [research, setResearch] = useState<ResearchData>(data as ResearchData)
   const [busy, setBusy] = useState(false)
 

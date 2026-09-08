@@ -24,7 +24,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `${process.env.CI ? 'python' : './.venv/bin/python'} -m uvicorn app.main:app --host 127.0.0.1 --port 18000`,
+      command: `${process.env.CI ? 'python' : './.venv/bin/python'} -m uvicorn ${process.env.GUANXIN_E2E_AGENT_FIXTURE ? 'tests.native_app:app' : 'app.main:app'} --host 127.0.0.1 --port 18000`,
       cwd: backendDirectory,
       url: "http://127.0.0.1:18000/health",
       timeout: 120_000,

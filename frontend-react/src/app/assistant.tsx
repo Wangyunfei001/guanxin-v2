@@ -12,13 +12,12 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { AiSdkRuntimeProvider } from "@/components/assistant-ui/aisdk-runtime-provider"
-import { Thread } from "@/components/assistant-ui/thread"
+import { AgentThread } from "@/components/agent/thread"
 import { Button } from "@/components/ui/button"
 import { agentApi } from "@/lib/api/agent"
 import { useLayoutStore } from "@/lib/stores/layout"
 import { cn } from "@/lib/utils"
-import type { Conversation, ConversationDetail, GuanxinUIMessage } from "@/types"
+import type { Conversation, ConversationDetail, HistoricalMessage } from "@/types"
 
 const ACTIVE_CONVERSATION_KEY = "guanxin_active_conversation"
 
@@ -183,14 +182,14 @@ export default function Assistant() {
     }
   }
 
-  const initialMessages: GuanxinUIMessage[] = useMemo(
+  const initialMessages: HistoricalMessage[] = useMemo(
     () =>
       (active?.messages || [])
         .filter((message) => message.role !== "system")
         .map((message) => ({
           id: message.message_id,
           role: message.role as "user" | "assistant",
-          parts: message.parts as GuanxinUIMessage["parts"],
+          parts: message.parts as HistoricalMessage["parts"],
         })),
     [active],
   )
@@ -317,13 +316,11 @@ export default function Assistant() {
         </div>
 
         {active ? (
-          <AiSdkRuntimeProvider
+          <AgentThread
             key={active.conversation_id}
             conversationId={active.conversation_id}
-            initialMessages={initialMessages}
-          >
-            <Thread />
-          </AiSdkRuntimeProvider>
+            history={initialMessages}
+          />
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center">
             <div>

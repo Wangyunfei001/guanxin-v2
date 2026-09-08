@@ -77,7 +77,7 @@ async def _config_response(
     )
     data = config.to_dict()
     data.update({
-        "agent_mode": "supervisor",
+        "agent_mode": "deepagents",
         "available_models": settings.available_models_list,
         "api_base": settings.openai_api_base,
         "tools_count": len(catalog),
@@ -146,6 +146,11 @@ async def delete_conversation(
 ):
     """删除对话。"""
     conv_store = get_conversation_store()
+    if conv_store.get_conversation_for_user(conversation_id, user.tenant_id, user.user_id) is None:
+        return {"code": 4041, "message": "对话未找到", "data": None}
+    from app.agent.thread_service import cancel_run
+
+    await cancel_run(conversation_id)
     run_ids = get_workflow_store().list_run_ids_for_conversation(
         conversation_id, user.tenant_id, user.user_id
     )
@@ -156,6 +161,7 @@ async def delete_conversation(
         return {"code": 4041, "message": "对话未找到", "data": None}
     for run_id in run_ids:
         await delete_checkpoint_thread(run_id)
+    await delete_checkpoint_thread(f"agent:{conversation_id}")
     return success({"deleted": True})
 
 

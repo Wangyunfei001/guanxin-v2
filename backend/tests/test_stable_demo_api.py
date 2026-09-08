@@ -1,4 +1,4 @@
-"""Acceptance coverage for authenticated AI SDK and Agent configuration APIs."""
+"""Acceptance coverage for authenticated LangChain and Agent configuration APIs."""
 
 from app.models.agent import ConversationMessage
 from app.services.conversation_store import get_conversation_store
@@ -16,15 +16,15 @@ def _config_payload(config: dict) -> dict:
     }
 
 
-def test_aisdk_requires_authentication(test_client):
+def test_langchain_requires_authentication(test_client):
     response = test_client.post(
-        "/api/agent/chat/aisdk",
+        "/api/agent/threads/missing/commands",
         json={"id": "missing", "messages": []},
     )
     assert response.status_code == 401
 
 
-def test_aisdk_hides_conversation_from_other_users(
+def test_langchain_hides_conversation_from_other_users(
     test_client, admin_headers, user_headers, demo_headers
 ):
     created = test_client.post(
@@ -37,10 +37,10 @@ def test_aisdk_hides_conversation_from_other_users(
         "messages": [{"id": "u1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}],
     }
     assert test_client.post(
-        "/api/agent/chat/aisdk", headers=user_headers, json=body
+        f"/api/agent/threads/{created['conversation_id']}/commands", headers=user_headers, json=body
     ).status_code == 404
     assert test_client.post(
-        "/api/agent/chat/aisdk", headers=demo_headers, json=body
+        f"/api/agent/threads/{created['conversation_id']}/commands", headers=demo_headers, json=body
     ).status_code == 404
 
 

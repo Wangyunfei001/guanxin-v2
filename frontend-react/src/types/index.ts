@@ -1,4 +1,3 @@
-import type { UIMessage } from "ai"
 
 // ============ API Response ============
 export interface ApiResponse<T = any> {
@@ -136,7 +135,11 @@ export type GuanxinDataParts = {
   research: ResearchData
 }
 
-export type GuanxinUIMessage = UIMessage<unknown, GuanxinDataParts>
+export interface HistoricalMessage {
+  id: string
+  role: "user" | "assistant"
+  parts: Record<string, any>[]
+}
 
 // ============ A2UI ============
 export interface A2UISchema {

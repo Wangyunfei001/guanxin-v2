@@ -222,7 +222,7 @@ _workflow_graph = None
 
 def get_workflow_graph():
     global _workflow_graph
-    if _workflow_graph is not None:
+    if _workflow_graph is not None and _workflow_graph.checkpointer is get_checkpointer():
         return _workflow_graph
     builder = StateGraph(WorkflowState)
     builder.add_node("execute_step", _execute_step_node)

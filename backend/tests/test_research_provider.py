@@ -49,28 +49,14 @@ async def test_timeout_does_not_wait_for_slow_cancellation(monkeypatch):
         await asyncio.wait_for(stopped.wait(), timeout=1)
 
 
-@pytest.mark.asyncio
-async def test_research_stream_updates_one_stable_data_part(monkeypatch):
-    from app.api import aisdk
-
-    messages = []
-
-    class Store:
-        def add_message(self, conversation_id, message):
-            messages.append(message)
-
-    async def snapshots(**kwargs):
-        for status in ["planning", "searching", "completed"]:
-            yield {"run_id": "research-test", "status": status, "report": "完成" if status == "completed" else ""}
-
-    monkeypatch.setattr(aisdk, "get_conversation_store", lambda: Store())
-    monkeypatch.setattr(aisdk, "run_research", snapshots)
-    output = [event async for event in aisdk._stream_research(
-        user_message="研究", conversation_id="conversation-test",
-        tenant_id="tenant-a", user_id="admin", mode="deep", catalog=[],
-    )]
-    events = [json.loads(event[6:]) for event in output if event.startswith("data: {")]
-    updates = [event for event in events if event["type"] == "data-research"]
-    assert len(updates) == 3
-    assert {event["id"] for event in updates} == {"research-test"}
-    assert messages[-1].parts[0]["id"] == "research-test"
+def test_native_event_log_replays_stable_ids(test_client, admin_headers):
+    from tests.test_langchain import new_thread
+    from app.services import agent_run_store as runs
+    cid = new_thread(test_client, admin_headers)
+    run, _ = runs.admit_run(cid, "replay-test")
+    for text in ["first", "second"]:
+        runs.append_event(run, runs.protocol_event("values", {"messages": [], "report": text}))
+    runs.finish_run(run, "completed")
+    first = runs.read_events(cid, 0)
+    assert first == runs.read_events(cid, 0)
+    assert runs.read_events(cid, first[0]["seq"]) == first[1:]

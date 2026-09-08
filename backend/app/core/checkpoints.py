@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import asyncio
 from contextlib import AbstractAsyncContextManager
 from typing import Optional
 
@@ -13,6 +14,8 @@ os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver  # noqa: E402
 
 
+_initialization_lock = asyncio.Lock()
+
 _manager: Optional[AbstractAsyncContextManager[AsyncSqliteSaver]] = None
 _checkpointer: Optional[AsyncSqliteSaver] = None
 
@@ -20,14 +23,15 @@ _checkpointer: Optional[AsyncSqliteSaver] = None
 async def initialize_checkpointer() -> AsyncSqliteSaver:
     """Open the shared async SQLite saver and initialize its schema."""
     global _manager, _checkpointer
-    if _checkpointer is not None:
-        return _checkpointer
-    manager = AsyncSqliteSaver.from_conn_string(str(settings.checkpoint_path))
-    saver = await manager.__aenter__()
-    await saver.setup()
-    _manager = manager
-    _checkpointer = saver
-    return saver
+    async with _initialization_lock:
+        if _checkpointer is not None:
+            return _checkpointer
+        manager = AsyncSqliteSaver.from_conn_string(str(settings.checkpoint_path))
+        saver = await manager.__aenter__()
+        await saver.setup()
+        _manager = manager
+        _checkpointer = saver
+        return saver
 
 
 def get_checkpointer() -> AsyncSqliteSaver:

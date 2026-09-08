@@ -48,9 +48,9 @@ test("persistent workflow collects input, executes approval and survives refresh
 
     const composer = page.getByLabel("输入消息")
     const sendButton = page.getByRole("button", { name: "发送消息" })
-    const attachmentButton = page.getByRole("button", { name: "Add Attachment" })
+    const attachmentButton = page.getByRole("button", { name: "添加文本附件" })
     const researchMode = page.getByRole("combobox", { name: "研究模式" })
-    const composerShell = page.locator('[data-slot="aui_composer-shell"]')
+    const composerShell = page.locator('[data-slot="agent-composer"]')
 
     await expect(sendButton).toBeDisabled()
     await expect(attachmentButton).toBeEnabled()
@@ -68,10 +68,10 @@ test("persistent workflow collects input, executes approval and survives refresh
     await composer.fill("创建一个用户")
     await expect(sendButton).toBeEnabled()
     const chatResponsePromise = page.waitForResponse((response) =>
-      response.url().includes("/api/agent/chat/aisdk"),
+      response.url().includes("/commands"),
     )
     await sendButton.click()
-    expect((await chatResponsePromise).status()).toBe(200)
+    expect((await chatResponsePromise).ok()).toBeTruthy()
 
     const workflowTrack = page.getByText("执行轨迹", { exact: true })
     await expect(workflowTrack).toHaveCount(1)

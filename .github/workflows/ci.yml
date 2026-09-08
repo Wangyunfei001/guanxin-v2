@@ -72,3 +72,6 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: npm run test:e2e -- e2e/native-agent.spec.ts
+        env:
+          GUANXIN_E2E_AGENT_FIXTURE: "1"

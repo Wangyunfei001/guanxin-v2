@@ -2,18 +2,18 @@
 
 交付版本：`v0.2.0-demo`，应用版本 `0.2.0`。发布状态与真实场景记录见 [验收报告](docs/releases/v0.2.0-demo-acceptance.md)，演示步骤见 [Demo 操作手册](docs/demo-guide.md)。
 
-观心 v2 是一个面向稳定演示的多租户 AI Agent 全栈项目。当前主链路使用 FastAPI、LangGraph、SQLite、ChromaDB、Next.js 15、React 19、AI SDK 与 assistant-ui。
+观心 v2 是一个面向稳定演示的多租户 AI Agent 全栈项目。当前开发分支已迁移为 FastAPI、Deep Agents、LangGraph、SQLite、ChromaDB、Next.js 15、React 19 与 LangChain React SDK。上方 v0.2.0 验收报告属于迁移前发布记录。
 
 ## 当前能力
 
 - JWT / API Key 认证与租户隔离
 - 文档上传、解析、切片、向量检索和 SQLite 元数据持久化
-- AI SDK 流式 Assistant、会话侧栏和完整历史恢复
-- 文本、推理、工具输入/输出、A2UI 与 approval 状态持久化
+- LangChain React SDK 原生流式 Assistant、会话侧栏和 checkpoint 历史恢复
+- 原生文本/工具事件、会话虚拟文件下载；旧研究与工作流记录仍可查看
 - 内置文本摘要、数据分析及管理型 Skill
 - stdio MCP 客户端、真实天气外部 Server，以及供外部客户端调用的只读观心网关
-- 统一 Supervisor、RBAC Tool Catalog 与最多 4 回合 / 8 次调用的只读 Tool Loop
-- DeepSeek Web Search 驱动的快速 / 深度研究，支持来源、预算、取消与重启恢复
+- Deep Agents 官方工具循环、摘要与文件上下文；业务中间件复核 RBAC，默认不启用子代理或 shell
+- Deep Agents 使用授权知识库与 DeepSeek Web Search 生成研究报告，支持明确取消和中断后手动继续
 - 租户级 Agent 配置；admin 可编辑，普通用户只读
 - API、SkillExecutor 与 Agent 工具三层 RBAC
 - 最多 16 步的持久化线性工作流，支持参数表单、审批、取消和故障接管
@@ -23,10 +23,10 @@
 
 | 层 | 技术 |
 |---|---|
-| 后端 | Python 3.11+、FastAPI、LangGraph、原生 sqlite3 |
-| 前端 | Next.js 15、React 19、TypeScript、AI SDK、assistant-ui |
+| 后端 | Python 3.11+、FastAPI、Deep Agents 0.7.13、LangGraph、原生 sqlite3 |
+| 前端 | Next.js 15、React 19、TypeScript、@langchain/react 1.0.35 |
 | 数据 | SQLite（业务数据）、SQLite checkpoint、ChromaDB（向量）、users.json（管理型 Skill 演示记录） |
-| 工具协议 | MCP stdio、A2UI data parts |
+| 工具协议 | MCP stdio、LangChain 线程 HTTP/SSE 协议 |
 
 ## 快速开始
 
@@ -172,7 +172,12 @@ Claude Desktop 配置示例（替换绝对路径和密钥，本示例不是已�
 | POST | `/api/knowledge/retrieve` | 检索知识库 |
 | POST | `/api/agent/conversations` | 创建会话 |
 | GET | `/api/agent/conversations/{id}` | 获取完整历史 parts |
-| POST | `/api/agent/chat/aisdk` | 认证后的 AI SDK UIMessage 流 |
+| GET | `/api/agent/threads/{id}/state` | 当前线程消息、虚拟文件与业务状态 |
+| POST | `/api/agent/threads/{id}/commands` | 官方 SDK run.start 命令 |
+| POST | `/api/agent/threads/{id}/stream/events` | 事件订阅与持久重放 |
+| POST | `/api/agent/threads/{id}/cancel` | 显式取消任务 |
+| GET | `/api/agent/threads/{id}/files/content?path=...` | 下载自己的任务文件 |
+| POST | `/api/agent/workflows/{run_id}/respond` | 提交参数、批准或拒绝工作流 |
 | GET | `/api/agent/research/{run_id}` | 获取研究阶段、预算、任务、来源与报告 |
 | POST | `/api/agent/research/{run_id}/cancel` | 取消自己的研究运行 |
 | POST | `/api/agent/research/{run_id}/resume` | 手动恢复重启后 interrupted 的研究 |
@@ -184,7 +189,16 @@ Claude Desktop 配置示例（替换绝对路径和密钥，本示例不是已�
 | PUT | `/api/mcp/servers/{server}/tools/{tool}/policy` | admin 标注 MCP 工具风险 |
 | POST | `/api/a2ui/preview` | 使用 `{ "schema": ... }` 预览 |
 
-AI SDK 是唯一聊天协议；历史 AG-UI 与自定义 SSE 端点已移除。
+AI SDK 端点与前端依赖已移除。新链路使用官方 HttpAgentServerAdapter；Python v3 消息事件只做 envelope 适配（tuple → data/node），不自研消息拼接器。研究旧 API 仅为既有记录的恢复兼容保留，新任务不使用旧研究编排。
+
+### 本轮运行边界
+
+- 后端使用单进程 Uvicorn。启动后恢复遗留 running 状态为 interrupted；不会自动重放任务。关闭浏览器只关闭订阅，显式取消才停止后台任务。多进程 worker 调度属于后续迭代。
+- 模型最多 16 次、工具最多 24 次调用、单次运行 480 秒；这是每次运行的上限，不是跨恢复的费用预算。
+- Deep Agents / LangGraph v3 事件仍为实验接口，必须使用提交的锁文件；升级时重跑原生浏览器用例。
+- 当前前端支持文本附件（总输入最多 100000 字符）与 Markdown 产物下载；图片/PDF 会话附件、分支编辑与 checkpoint 时间旅行未迁移。知识库的 PDF/DOCX 上传保持原有能力。
+- 身份体系仍为 Demo 账号，不能将本次迁移视为生产认证改造。
+- 未配置模型时明确显示失败，不返回伪造的成功报告。
 
 ## 验证
 
@@ -200,13 +214,14 @@ npm run typecheck
 npm run build
 npx playwright install chromium
 npm run test:e2e
+GUANXIN_E2E_AGENT_FIXTURE=1 npm run test:e2e -- e2e/native-agent.spec.ts
 ```
 
 完整 pytest 包含真正的 MCP stdio 协议测试；也可单独运行 `pytest tests/test_mcp_gateway.py -q`。CI 在 PR 和 main push 上运行 Python 3.13、Node 20、lint、类型检查、构建、pytest 和 Chromium E2E，不配置真实 API Key。
 
 pytest/Playwright 使用系统临时数据目录；Playwright 的 SQLite、checkpoint、Chroma、uploads、users JSON 位于同一临时根目录，结束时精确清理。测试前端使用 `.next-e2e` 和专用端口，不访问现有开发服务。自定义本地实例可设置 `GUANXIN_BACKEND_URL`（Next.js 代理目标）及 `NEXT_DIST_DIR`（独立构建缓存）。
 
-当前测试覆盖 SQLite 幂等与重启持久、外键级联、并发写、租户/用户隔离、RBAC、A2UI 契约、Agent 配置、Supervisor 路由、结构化工具 Schema、稳定 tool call、Research 来源去重与持久化、工作流 interrupt/resume、风险步骤故障接管及幂等执行。
+当前测试覆盖 SQLite 幂等与重启持久、外键级联、并发写、租户/用户隔离、RBAC、A2UI 契约、Agent 配置、Deep Agents 工具循环与恢复、结构化工具 Schema、稳定 tool call、Research 来源去重与持久化、工作流 interrupt/resume、风险步骤故障接管及幂等执行。
 
 ## 数据与初始化
 
