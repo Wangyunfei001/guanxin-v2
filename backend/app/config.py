@@ -65,6 +65,7 @@ class Settings(BaseSettings):
 
     # === Deep Research ===
     research_model: str = "deepseek-v4-flash"
+    research_source_hosts: str = "docs.langchain.com,reference.langchain.com,api-docs.deepseek.com"
 
     # === 预设用户 ===
     preset_users_json: str = ""

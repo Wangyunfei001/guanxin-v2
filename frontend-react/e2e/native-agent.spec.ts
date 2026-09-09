@@ -58,3 +58,24 @@ test("closing the subscriber does not cancel, explicit stop does", async ({ page
   await expect(page.locator('[data-message-role="human"]')).toHaveCount(2)
   await expect(page.locator('[data-message-role="ai"]').filter({ hasText: "测试回复" })).toHaveCount(2)
 })
+
+test("research review shows matched excerpts as pending human review", async ({ page }) => {
+  await page.route("**/api/agent/threads/*/state", async (route) => {
+    const response = await route.fetch()
+    const state = await response.json()
+    state.values.research_review = {
+      budget: { calls: 2, actions: 23, max_calls: 2, max_actions: 20, pending: 0, uncertain: 0 },
+      claims: [{ claim: "线程状态由 checkpointer 保存", url: "https://docs.langchain.com/oss/python/langgraph/persistence", quote: "Checkpointers persist a thread’s graph state as checkpoints." }],
+    }
+    await route.fulfill({ response, json: state })
+  })
+  await login(page)
+  const panel = page.getByRole("region", { name: "研究审查" })
+  await expect(panel).toContainText("搜索请求 2/2")
+  await expect(panel).toContainText("23/20")
+  await panel.getByText("待人工审查：线程状态由 checkpointer 保存").click()
+  await expect(panel).toContainText("是否支持主张仍需判断")
+  await expect(panel.getByRole("link", { name: "查看来源原文" })).toHaveAttribute("href", "https://docs.langchain.com/oss/python/langgraph/persistence")
+  await panel.getByText("是否支持主张仍需判断", { exact: false }).scrollIntoViewIfNeeded()
+  await page.screenshot({ path: "output/playwright/citation-review.png", fullPage: true })
+})

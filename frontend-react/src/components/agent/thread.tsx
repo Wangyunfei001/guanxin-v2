@@ -18,6 +18,7 @@ type AgentState = {
   workflow?: WorkflowData
   research_mode?: ResearchMode
   run_status?: string
+  research_review?: { budget: { calls: number; actions: number; max_calls: number; max_actions: number; pending: number; uncertain: number } | null; claims: { claim: string; url: string; quote: string }[] }
   run_error?: string
 }
 
@@ -129,6 +130,17 @@ function NativeThread({ conversationId, history, refresh }: { conversationId: st
         {stream.values.workflow && <WorkflowDataRenderer data={stream.values.workflow} onRefresh={refresh} />}
         {Object.keys(stream.values.files || {}).length > 0 && <section className="rounded-xl border bg-card p-4"><h3 className="mb-2 text-sm font-semibold">任务文件</h3>{Object.keys(stream.values.files).map((path) => <Button key={path} variant="ghost" className="flex max-w-full justify-start" onClick={() => void download(path)}><DownloadSimple size={16} /><span className="truncate">{path}</span></Button>)}</section>}
         {running && <p role="status" className="text-sm text-muted-foreground">正在执行任务…</p>}
+        {stream.values.research_review?.budget && <section className="rounded-lg border p-4 text-sm" aria-label="研究审查">
+          <p>搜索请求 {stream.values.research_review.budget.calls}/{stream.values.research_review.budget.max_calls} · 已报告搜索动作 {stream.values.research_review.budget.actions}/{stream.values.research_review.budget.max_actions}</p>
+          <p className="mt-1 text-xs text-muted-foreground">预算按会话累计。动作阈值仅限制后续搜索。</p>
+          {!!(stream.values.research_review.budget.pending || stream.values.research_review.budget.uncertain) && <p>搜索进行中或用量待核实，后续搜索已暂停。</p>}
+          {stream.values.research_review.claims.map((item, index) => <details key={index} className="mt-3 border-t pt-3">
+            <summary className="cursor-pointer">待人工审查：{item.claim}</summary>
+            <blockquote className="my-2 border-l-2 pl-3">{item.quote}</blockquote>
+            <a href={item.url} target="_blank" rel="noreferrer" className="text-primary underline">查看来源原文</a>
+            <p className="mt-1 text-xs text-muted-foreground">摘录已匹配原文；是否支持主张仍需判断。</p>
+          </details>)}
+        </section>}
         {["interrupted", "failed", "cancelled"].includes(stream.values.run_status || "") && <div className="rounded-lg bg-muted p-3 text-sm"><p>任务已停止，可从已保存的执行状态继续。</p><Button type="button" variant="outline" disabled={disabled} onClick={() => { setActionError(""); void stream.submit(null).catch((error) => setActionError(String(error))) }}>继续任务</Button></div>}
         {error && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">{error}</p>}
       </div>

@@ -16,7 +16,7 @@ from evaluations.metrics import citation_checks, estimate
 
 CASES = [
     {"id": "knowledge", "prompt": "请检索知识库中的星桥项目验收规范，回答正式交付前需要多少个工作日的验收、谁签字，以及失败后多久复测。引用文件名和原文，未知信息不要猜。", "required": ["5", "2", "项目负责人", "星桥验收规范"], "tools": ["kb_retrieval"]},
-    {"id": "research", "prompt": "请使用 web_search 核实 LangGraph 官方文档：持久化需要 checkpointer 吗？thread_id 的作用是什么？interrupt 恢复使用什么命令？用中文分别给出答案，每项紧邻官方来源链接。不要使用非官方转载，不生成文件。", "required": ["checkpointer", "thread_id", "Command"], "tools": ["web_search"]},
+    {"id": "research", "prompt": "请使用 web_search 核实 LangGraph 官方文档：持久化需要 checkpointer 吗？thread_id 的作用是什么？interrupt 恢复使用什么命令？用中文分别给出答案，每项紧邻官方来源链接。不要使用非官方转载，不生成文件。", "required": ["checkpointer", "thread_id", "Command"], "tools": ["web_search", "read_source", "record_citation"]},
     {"id": "report", "prompt": "仅根据以下给定资料，写一份简短中文报告，保存为 /reports/acceptance.md。资料A：星桥项目验收期为5个工作日，由项目负责人签字（来源：https://example.com/eval/spec）。资料B：复测在2个工作日内进行（来源：https://example.com/eval/retest）。逐条标明来源，说明这些是用户提供的评估资料而非已联网核实的事实，不增加其他事实。最后告知文件路径。", "required": ["5", "2", "项目负责人"], "tools": ["write_file"]},
     {"id": "approval", "prompt": "请为团队新增一个用户名 eval_member 的普通用户，邮箱 eval_member@example.com。先建立业务审批流程，等待我确认；禁止直接执行或声称用户已经创建。", "required": [], "tools": ["request_business_workflow"]},
 ]
@@ -45,17 +45,18 @@ async def evaluate(args):
     get_agent_config_store().save_config(config)
     user = User("eval-user", "eval", "", "evaluation", "Evaluation", "admin")
     kb_error = None
-    try:
-        from app.services.embedding_service import get_embedding_service
-        from app.core.database import get_or_create_collection
-        fixture = "星桥验收规范：正式交付前验收期为5个工作日，由项目负责人签字。验收失败后应在2个工作日内复测。"
-        vectors, fallback = await asyncio.to_thread(get_embedding_service().embed_texts_with_fallback, [fixture])
-        if fallback:
-            raise RuntimeError("Real embedding unavailable; random-vector retrieval is not an evaluation")
-        get_or_create_collection("evaluation").add(ids=["eval-spec"], documents=[fixture], embeddings=vectors,
-            metadatas=[{"doc_id": "eval-spec", "filename": "星桥验收规范.txt"}])
-    except Exception as exc:
-        kb_error = type(exc).__name__ + ": real embedding unavailable"
+    if args.case in {None, "knowledge"}:
+        try:
+            from app.services.embedding_service import get_embedding_service
+            from app.core.database import get_or_create_collection
+            fixture = "星桥验收规范：正式交付前验收期为5个工作日，由项目负责人签字。验收失败后应在2个工作日内复测。"
+            vectors, fallback = await asyncio.to_thread(get_embedding_service().embed_texts_with_fallback, [fixture])
+            if fallback:
+                raise RuntimeError("Real embedding unavailable; random-vector retrieval is not an evaluation")
+            get_or_create_collection("evaluation").add(ids=["eval-spec"], documents=[fixture], embeddings=vectors,
+                metadatas=[{"doc_id": "eval-spec", "filename": "星桥验收规范.txt"}])
+        except Exception as exc:
+            kb_error = type(exc).__name__ + ": real embedding unavailable"
 
     output = Path(args.output)
     results = []
@@ -89,6 +90,8 @@ async def evaluate(args):
                 for m in messages:
                     if m.get("type") == "tool" and m.get("name") == "web_search":
                         data = json.loads(m["content"])
+                        if "error" in data:
+                            continue
                         sources.extend(data.get("sources", []))
                         searches.append({k: data.get(k) for k in ("model", "usage", "search_actions")})
                 if case["id"] == "report":
@@ -101,6 +104,12 @@ async def evaluate(args):
                     checks["waiting_for_user"] = bool(run and run["status"] in {"waiting_approval", "waiting_input"})
                     checks["no_business_write"] = not Path(settings.user_data_path).exists()
                 if case["id"] == "report": checks["file_exists"] = bool(text)
+                from app.research.ledger import snapshot
+                record["research_review"] = snapshot(conversation.conversation_id)
+                if case["id"] == "research":
+                    checks["claim_evidence_records"] = len(record["research_review"]["claims"]) >= 3
+                    checks["claim_topic_coverage"] = all(any(topic.lower() in c["claim"].lower()
+                        for c in record["research_review"]["claims"]) for topic in ("checkpointer", "thread_id", "Command"))
                 citations = citation_checks(text, sources)
                 if case["id"] in {"research", "report"}:
                     checks["traceable_citations"] = bool(citations["links"]) and not citations["unobserved_links"]

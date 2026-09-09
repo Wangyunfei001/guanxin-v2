@@ -48,6 +48,8 @@ async def thread_values(conversation) -> dict:
     run = runs.latest_run(conversation.conversation_id)
     values["run_status"] = run["status"] if run else "idle"
     values["run_error"] = run["error"] if run else ""
+    from app.research.ledger import snapshot
+    values["research_review"] = snapshot(conversation.conversation_id)
     return values
 
 
