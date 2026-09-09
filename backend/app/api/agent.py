@@ -82,7 +82,7 @@ async def _config_response(
         "api_base": settings.openai_api_base,
         "tools_count": len(catalog),
         "skills_count": len(skills),
-        "available_tools": ["kb_retrieval", "web_search", "deep_research"],
+        "available_tools": ["kb_retrieval", "web_search"],
         "available_tool_specs": serialize_tool_specs(catalog),
         "available_skills": skills,
         "available_mcp_servers": [server["name"] for server in servers],

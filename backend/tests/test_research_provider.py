@@ -60,3 +60,25 @@ def test_native_event_log_replays_stable_ids(test_client, admin_headers):
     first = runs.read_events(cid, 0)
     assert first == runs.read_events(cid, 0)
     assert runs.read_events(cid, first[0]["seq"]) == first[1:]
+
+
+def test_links_from_model_text_are_not_verified_citations():
+    sources = provider_module._sources_from_payload({}, '[来源](https://example.com/a)')
+    assert sources[0].metadata["provenance"] == "model_text_unverified"
+
+
+@pytest.mark.asyncio
+async def test_search_keeps_actual_model_usage_and_requires_search():
+    class Responses:
+        async def create(self, **kwargs):
+            assert kwargs["tool_choice"] == "required"
+            return {"model": "actual-model", "usage": {"input_tokens": 7, "output_tokens": 3},
+                    "output": [{"type": "web_search_call"}, {"type": "message", "content": [
+                        {"type": "output_text", "text": "证据", "annotations": [
+                            {"url": "https://example.com/a", "title": "来源"}]}]}]}
+    class Client:
+        responses = Responses()
+    result = await provider_module.DeepSeekResearchProvider(client=Client()).search("query")
+    assert result.model == "actual-model" and result.usage["input_tokens"] == 7
+    assert result.search_actions == 1
+    assert result.sources[0].metadata["provenance"] == "provider_annotation"

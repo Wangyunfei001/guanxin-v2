@@ -1,0 +1,352 @@
+{
+  "case": "research",
+  "prompt": "请使用 web_search 核实 LangGraph 官方文档：持久化需要 checkpointer 吗？thread_id 的作用是什么？interrupt 恢复使用什么命令？用中文分别给出答案，每项紧邻官方来源链接。不要使用非官方转载，不生成文件。",
+  "requested_model": "deepseek-v4-pro",
+  "started_at": "2026-09-09T06:31:28.898753+00:00",
+  "test_model": false,
+  "messages": [
+    {
+      "type": "human",
+      "content": "请使用 web_search 核实 LangGraph 官方文档：持久化需要 checkpointer 吗？thread_id 的作用是什么？interrupt 恢复使用什么命令？用中文分别给出答案，每项紧邻官方来源链接。不要使用非官方转载，不生成文件。",
+      "name": null
+    },
+    {
+      "type": "ai",
+      "content": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "args": {
+            "query": "LangGraph persistence checkpointer thread_id official documentation"
+          },
+          "id": "call_00_eTclytGNE7ZddluD2PIu8403",
+          "type": "tool_call"
+        },
+        {
+          "name": "web_search",
+          "args": {
+            "query": "LangGraph interrupt resume Command official documentation"
+          },
+          "id": "call_01_dk6pG51QnnjWjCgge9ac0412",
+          "type": "tool_call"
+        }
+      ],
+      "name": "guanxin",
+      "usage_metadata": {
+        "input_tokens": 4633,
+        "output_tokens": 87,
+        "total_tokens": 4720,
+        "input_token_details": {
+          "cache_read": 4608
+        },
+        "output_token_details": {}
+      }
+    },
+    {
+      "type": "tool",
+      "content": "{\"text\": \"Let me open the official documentation pages to get precise details.\\nLet me gather more detail from the checkpointing guide and reference documentation.\\nLet me check the dedicated checkpointers guide and the memory guide for additional thread_id semantics.\\nLet me get the concept-level reference page for checkpointing to round out the thread_id semantics.\\nLet me open the full Checkpointers guide to capture thread_id usage details.\\nBelow is a summary of what the **official LangGraph documentation** says about `thread_id` in the persistence/checkpointer system. All information below comes from official LangChain/LangGraph docs (linked throughout).\\n\\n## Key official sources\\n\\n- Persistence guide (Python): https://docs.langchain.com/oss/python/langgraph/persistence\\n- Persistence guide (JavaScript/TypeScript): https://docs.langchain.com/oss/javascript/langgraph/persistence\\n- Checkpointers guide (Python): https://docs.langchain.com/oss/python/langgraph/checkpointers\\n- Add memory guide (short-term memory): https://docs.langchain.com/oss/python/langgraph/add-memory\\n- Python API reference (`langgraph.checkpoint` / `BaseCheckpointSaver`): https://reference.langchain.com/python/langgraph.checkpoint and https://reference.langchain.com/python/langgraph.checkpoint/memory\\n- JS API reference (`@langchain/langgraph-checkpoint`): https://langchain-ai.github.io/langgraphjs/reference/modules/langgraph-checkpoint.html\\n\\n## What `thread_id` is\\n\\n- **A thread** is \\\"a unique ID or thread identifier assigned to each checkpoint saved by a checkpointer. It contains the accumulated state of a sequence of runs.\\\" (https://docs.langchain.com/oss/python/langgraph/checkpointers)\\n- **`thread_id` is always required** when you invoke a graph compiled with a checkpointer. It is passed inside the `configurable` portion of the config:\\n\\n```python\\nconfig = {\\\"configurable\\\": {\\\"thread_id\\\": \\\"1\\\"}}\\ngraph.invoke(inputs, config)\\n```\\n\\n```js\\nconst config = { configurable: { thread_id: \\\"1\\\" } };\\nawait graph.invoke(inputs, config);\\n```\\n\\n- **`thread_id` is the primary key used to store and retrieve checkpoints.** Per the official docs: \\\"Without it, the checkpointer cannot save state, resume from interrupts, or enable time-travel debugging.\\\" (https://reference.langchain.com/python/langgraph.checkpoint/memory)\\n- **`checkpoint_id` is optional** and refers to a specific checkpoint within a thread (e.g., for time-travel/replay): `{\\\"configurable\\\": {\\\"thread_id\\\": \\\"1\\\", \\\"checkpoint_id\\\": \\\"0c62ca34-...\\\"}}`. (https://reference.langchain.com/python/langgraph.checkpoint, https://langchain-ai.github.io/langgraphjs/reference/modules/langgraph-checkpoint.html)\\n\\n## How to enable it\\n\\nCompile the graph with a checkpointer, then pass a thread in the invocation config (https://docs.langchain.com/oss/python/langgraph/persistence, https://docs.langchain.com/oss/python/langgraph/add-memory):\\n\\n```python\\nfrom langgraph.checkpoint.memory import InMemorySaver\\n\\ncheckpointer = InMemorySaver()\\ngraph = builder.compile(checkpointer=checkpointer)\\n\\ngraph.invoke(\\n    {\\\"messages\\\": [{\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"hi! I am Bob\\\"}]},\\n    {\\\"configurable\\\": {\\\"thread_id\\\": \\\"1\\\"}},\\n)\\n```\\n\\n```js\\nimport { MemorySaver } from \\\"@langchain/langgraph\\\";\\n\\nconst checkpointer = new MemorySaver();\\nconst graph = builder.compile({ checkpointer });\\n\\nawait graph.invoke(\\n  { messages: [{ role: \\\"user\\\", content: \\\"Hi!\\\" }] },\\n  { configurable: { thread_id: \\\"thread-1\\\" } }\\n);\\n```\\n\\n## Choosing a `thread_id`\\n\\nPer the official `BaseCheckpointSaver` reference (https://reference.langchain.com/python/langgraph.checkpoint/memory), how you choose the value depends on your use case:\\n\\n- **Single-shot workflows:** Use a unique ID (e.g., `uuid4()`) per run when executions are independent.\\n- **Conversational memory:** **Reuse the same `thread_id` across invocations** to accumulate state (e.g., chat history) within a conversation. Reusing the same ID lets the next run load the previous checkpoint and continue from it.\\n\\n## Reading state back by `thread_id`\\n\\nUse `get_state` / `get_state_history`, passing a config with the `thread_id` (https://docs.langchain.com/oss/python/langgraph/checkpointers):\\n\\n```python\\nconfig = {\\\"configurable\\\": {\\\"thread_id\\\": \\\"1\\\"}}\\ngraph.get_state(config)              # latest snapshot for the thread\\nlist(graph.get_state_history(config)) # full checkpoint history for the thread\\n```\\n\\nA `thread_id` can also be combined with `checkpoint_id` to fetch a specific historical snapshot, replay from a checkpoint, or fork state (time travel).\\n\\n## Important caveats in the official docs\\n\\n- **Length limits:** \\\"When using `PostgresSaver` (or `AsyncPostgresSaver`), the `thread_id` is stored in a column with limited length... Keep `thread_id` values **under 255 characters**. Use a UUID or hash if you need deterministic IDs.\\\" (https://docs.langchain.com/oss/python/langgraph/persistence)\\n- **In-memory savers don't persist across restarts:** `MemorySaver`/`InMemorySaver` store checkpoints in RAM and lose them on restart — the docs recommend `PostgresSaver` or `SqliteSaver` for production. (same page)\\n- **Not required with LangGraph Agent Server / deployments:** \\\"Agent Server handles persistence automatically... you do not need to implement or configure checkpointers or stores manually.\\\" (https://docs.langchain.com/oss/python/langgraph/persistence)\\n\\n## Caveat on \\\"official\\\" scope\\n\\nThe pages above are the current official Python and JS LangGraph docs (docs.langchain.com, reference.langchain.com, and the JS reference site). Note that a few search results surfaced third‑party mirrors (e.g., `docs.langchain.org.cn`, `mintlify.wiki`) — those are **not official sources** and were not relied on here. I recommend confirming details against the primary URLs linked above.\", \"sources\": [{\"url\": \"https://docs.langchain.com/oss/python/langgraph/persistence\", \"title\": \"docs.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://docs.langchain.com/oss/javascript/langgraph/persistence\", \"title\": \"docs.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://docs.langchain.com/oss/python/langgraph/checkpointers\", \"title\": \"docs.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://docs.langchain.com/oss/python/langgraph/add-memory\", \"title\": \"docs.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://reference.langchain.com/python/langgraph.checkpoint\", \"title\": \"reference.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://reference.langchain.com/python/langgraph.checkpoint/memory\", \"title\": \"reference.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://langchain-ai.github.io/langgraphjs/reference/modules/langgraph-checkpoint.html\", \"title\": \"langchain-ai.github.io\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}], \"usage\": {\"input_tokens\": 75911, \"input_tokens_details\": {\"cached_tokens\": 57344}, \"output_tokens\": 2975, \"output_tokens_details\": {\"reasoning_tokens\": 922}, \"total_tokens\": 78886}, \"model\": \"deepseek-v4-flash\", \"search_actions\": 13}",
+      "name": "web_search"
+    },
+    {
+      "type": "tool",
+      "content": "{\"text\": \"Let me open the official documentation pages for LangGraph interrupts and the Command primitive.\\nLet me also fetch the `Command` reference page and the JavaScript interrupt function reference.\\nHere are the official LangChain/LangGraph documentation sources for the **`interrupt()` / `Command(resume=...)`** mechanism, followed by a summary of what they cover.\\n\\n## Official documentation links\\n\\n**Concept guides (recommended starting points)**\\n- Python: https://docs.langchain.com/oss/python/langgraph/interrupts\\n- JavaScript/TypeScript: https://docs.langchain.com/oss/javascript/langgraph/interrupts\\n- Docs source on GitHub (interrupts.mdx): https://github.com/langchain-ai/docs/blob/HEAD/src/oss/langgraph/interrupts.mdx\\n\\n**API reference**\\n- Python `interrupt` type reference: https://reference.langchain.com/python/langgraph/types/interrupt\\n- Python `Command` reference (documents `resume`): https://reference.langchain.com/python/langgraph/types/Command\\n- JS `interrupt` function reference: https://langchain-ai.github.io/langgraphjs/reference/functions/langgraph.interrupt.html\\n- JS `Command` / `LangGraphRunnableConfig` reference: https://langchain-ai.github.io/langgraphjs/reference/interfaces/langgraph.LangGraphRunnableConfig.html (see also https://langchain-ai.github.io/langgraphjs/reference/classes/langgraph.Command.html if needed)\\n\\nRelated official pages: functional API guide (resuming an `entrypoint` with `Command`) — https://github.com/langchain-ai/docs/blob/HEAD/src/oss/langgraph/functional-api.mdx — and human-in-the-loop guides under https://docs.langchain.com/oss/python/langgraph/ and https://docs.langchain.com/oss/javascript/langgraph/.\\n\\n## Core semantics (from the official docs)\\n\\n**How `interrupt()` works**\\n- Call `interrupt(value)` inside a node/tool to pause execution. The `value` (must be JSON-serializable) is surfaced to the caller — under `stream.interrupts` with the v3 `stream_events` API, or under `__interrupt__` with the default `invoke()` API.\\n- Requires a **checkpointer** (persistence layer) and a `thread_id` in `config` so state can be saved and resumed.\\n- On the first call in a node it raises a `GraphInterrupt` exception, halting the graph; LangGraph waits indefinitely for a resume.\\n\\n**How `Command(resume=...)` resumes**\\n- To continue, re-invoke the graph with `Command(resume=...)` (Python) or `new Command({ resume: ... })` (JS/TS), using the **same `thread_id`**.\\n- The resume value becomes the **return value of the `interrupt()` call** inside the node.\\n- Important caveat: the node **restarts from its beginning** on resume — \\\"re-executing all logic\\\" before the `interrupt()` — so code before the interrupt must be idempotent.\\n- The resume value can be a single value, or a **mapping of interrupt IDs → resume values** to resume multiple parallel interrupts in one invocation.\\n- Per the official docs, `Command(resume=...)` is the *only* Command pattern intended as **input** to `invoke()/stream()/stream_events()`. The other `Command` fields (`update`, `goto`, `graph`) are for **returning from node functions** — don't pass `Command(update=...)` as run input.\\n\\n**JS-specific behavior** (from the function reference): when `interrupt` is called, if a resume value is available from a previous `Command`, it returns that value; otherwise it throws `GraphInterrupt` with the provided value. Because it propagates by throwing, the docs advise against wrapping it in `try/catch` (or rethrowing `GraphInterrupt` if you do).\\n\\n**Patterns documented** in the concept guides: approval/rejection workflows, review-and-edit state, interrupts inside tools, validating human input, and handling multiple simultaneous interrupts.\\n\\nNote: the docs pages describe both the newer v3 event-streaming API (`stream_events(..., version=\\\"v3\\\")` with `stream.interrupts` / `stream.interrupted`) and the classic `invoke()`/`stream()` API returning `__interrupt__`. If you see references elsewhere to older behavior (e.g., resume via `Command(resume=...)` after a re-invocation pattern), prefer these current official pages above.\", \"sources\": [{\"url\": \"https://docs.langchain.com/oss/python/langgraph/interrupts\", \"title\": \"docs.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://docs.langchain.com/oss/javascript/langgraph/interrupts\", \"title\": \"docs.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://github.com/langchain-ai/docs/blob/HEAD/src/oss/langgraph/interrupts.mdx\", \"title\": \"github.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://reference.langchain.com/python/langgraph/types/interrupt\", \"title\": \"reference.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://reference.langchain.com/python/langgraph/types/Command\", \"title\": \"reference.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://langchain-ai.github.io/langgraphjs/reference/functions/langgraph.interrupt.html\", \"title\": \"langchain-ai.github.io\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://langchain-ai.github.io/langgraphjs/reference/interfaces/langgraph.LangGraphRunnableConfig.html\", \"title\": \"langchain-ai.github.io\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://langchain-ai.github.io/langgraphjs/reference/classes/langgraph.Command.html\", \"title\": \"langchain-ai.github.io\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://github.com/langchain-ai/docs/blob/HEAD/src/oss/langgraph/functional-api.mdx\", \"title\": \"github.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://docs.langchain.com/oss/python/langgraph/\", \"title\": \"docs.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}, {\"url\": \"https://docs.langchain.com/oss/javascript/langgraph/.\", \"title\": \"docs.langchain.com\", \"publisher\": \"\", \"snippet\": \"\", \"metadata\": {\"provenance\": \"model_text_unverified\"}}], \"usage\": {\"input_tokens\": 29119, \"input_tokens_details\": {\"cached_tokens\": 15360}, \"output_tokens\": 1859, \"output_tokens_details\": {\"reasoning_tokens\": 545}, \"total_tokens\": 30978}, \"model\": \"deepseek-v4-flash\", \"search_actions\": 6}",
+      "name": "web_search"
+    },
+    {
+      "type": "ai",
+      "content": "以下答案均来自 LangGraph 官方文档（docs.langchain.com / reference.langchain.com），未使用第三方转载。\n\n## 1. 持久化需要 checkpointer 吗？\n\n**需要。** 持久化（persistence）依赖 checkpointer（检查点保存器）。官方文档明确：要启用持久化，需在编译图时传入一个 checkpointer，例如 `graph = builder.compile(checkpointer=checkpointer)`；checkpointer 负责保存和恢复图的状态（checkpoint）。同时，`interrupt()` 机制也要求配置 checkpointer 才能保存状态并恢复。\n\n来源：[Persistence — LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/persistence)\n\n## 2. thread_id 的作用是什么？\n\n**thread_id 是每个 checkpoint 的唯一线程标识，是保存和检索状态的主键。** 官方文档说明：thread 是「分配给 checkpointer 保存的每个 checkpoint 的唯一 ID 或线程标识符，包含一系列运行累积的状态」。调用已编译（带 checkpointer）的图时，`thread_id` 是**必需**的，通过 config 的 `configurable` 字段传入；没有它，checkpointer 无法保存状态、无法从 interrupt 恢复、也无法进行时间旅行调试。复用同一个 `thread_id` 可让下一次运行加载上一次的 checkpoint 并继续（用于对话记忆）；`checkpoint_id` 则是可选的，用于定位线程内的某个具体 checkpoint。\n\n来源：[Checkpointers — LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/checkpointers)\n\n## 3. interrupt 恢复使用什么命令？\n\n**使用 `Command(resume=...)`（Python）或 `new Command({ resume: ... })`（JS/TS）恢复。** 官方文档说明：调用 `interrupt(value)` 暂停执行后，要恢复需用**相同的 `thread_id`** 重新调用图，并传入 `Command(resume=...)`；resume 的值会成为节点内 `interrupt()` 调用的返回值。注意：恢复时节点会**从头重新执行** `interrupt()` 之前的逻辑，因此之前的代码需保持幂等。`Command(resume=...)` 是唯一作为 `invoke()/stream()/stream_events()` 输入使用的 Command 模式。\n\n来源：[Interrupts — LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/interrupts)\n\n---\n\n补充说明：以上为官方文档的当前表述。若你使用的是 LangGraph Agent Server（部署环境），官方文档指出其会自动处理持久化，无需手动配置 checkpointer（[Persistence 文档](https://docs.langchain.com/oss/python/langgraph/persistence)）。",
+      "tool_calls": [],
+      "name": "guanxin",
+      "usage_metadata": {
+        "input_tokens": 8359,
+        "output_tokens": 579,
+        "total_tokens": 8938,
+        "input_token_details": {
+          "cache_read": 4608
+        },
+        "output_token_details": {}
+      }
+    }
+  ],
+  "files": {},
+  "status": "completed",
+  "checks": {
+    "required_facts_present": true,
+    "required_tools_called": true,
+    "traceable_citations": true
+  },
+  "automated_pass": true,
+  "citations": {
+    "links": [
+      "https://docs.langchain.com/oss/python/langgraph/checkpointers",
+      "https://docs.langchain.com/oss/python/langgraph/interrupts",
+      "https://docs.langchain.com/oss/python/langgraph/persistence"
+    ],
+    "links_observed_in_tool_evidence": [
+      "https://docs.langchain.com/oss/python/langgraph/checkpointers",
+      "https://docs.langchain.com/oss/python/langgraph/interrupts",
+      "https://docs.langchain.com/oss/python/langgraph/persistence"
+    ],
+    "unobserved_links": [],
+    "domains": [
+      "docs.langchain.com"
+    ],
+    "entailment": "requires_human_review"
+  },
+  "source_evidence": [
+    {
+      "url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+      "title": "docs.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://docs.langchain.com/oss/javascript/langgraph/persistence",
+      "title": "docs.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://docs.langchain.com/oss/python/langgraph/checkpointers",
+      "title": "docs.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://docs.langchain.com/oss/python/langgraph/add-memory",
+      "title": "docs.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://reference.langchain.com/python/langgraph.checkpoint",
+      "title": "reference.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://reference.langchain.com/python/langgraph.checkpoint/memory",
+      "title": "reference.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://langchain-ai.github.io/langgraphjs/reference/modules/langgraph-checkpoint.html",
+      "title": "langchain-ai.github.io",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://docs.langchain.com/oss/python/langgraph/interrupts",
+      "title": "docs.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://docs.langchain.com/oss/javascript/langgraph/interrupts",
+      "title": "docs.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://github.com/langchain-ai/docs/blob/HEAD/src/oss/langgraph/interrupts.mdx",
+      "title": "github.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://reference.langchain.com/python/langgraph/types/interrupt",
+      "title": "reference.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://reference.langchain.com/python/langgraph/types/Command",
+      "title": "reference.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://langchain-ai.github.io/langgraphjs/reference/functions/langgraph.interrupt.html",
+      "title": "langchain-ai.github.io",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://langchain-ai.github.io/langgraphjs/reference/interfaces/langgraph.LangGraphRunnableConfig.html",
+      "title": "langchain-ai.github.io",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://langchain-ai.github.io/langgraphjs/reference/classes/langgraph.Command.html",
+      "title": "langchain-ai.github.io",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://github.com/langchain-ai/docs/blob/HEAD/src/oss/langgraph/functional-api.mdx",
+      "title": "github.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://docs.langchain.com/oss/python/langgraph/",
+      "title": "docs.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    },
+    {
+      "url": "https://docs.langchain.com/oss/javascript/langgraph/.",
+      "title": "docs.langchain.com",
+      "publisher": "",
+      "snippet": "",
+      "metadata": {
+        "provenance": "model_text_unverified"
+      }
+    }
+  ],
+  "search_usage": [
+    {
+      "model": "deepseek-v4-flash",
+      "usage": {
+        "input_tokens": 75911,
+        "input_tokens_details": {
+          "cached_tokens": 57344
+        },
+        "output_tokens": 2975,
+        "output_tokens_details": {
+          "reasoning_tokens": 922
+        },
+        "total_tokens": 78886
+      },
+      "search_actions": 13
+    },
+    {
+      "model": "deepseek-v4-flash",
+      "usage": {
+        "input_tokens": 29119,
+        "input_tokens_details": {
+          "cached_tokens": 15360
+        },
+        "output_tokens": 1859,
+        "output_tokens_details": {
+          "reasoning_tokens": 545
+        },
+        "total_tokens": 30978
+      },
+      "search_actions": 6
+    }
+  ],
+  "answer": "\n以下答案均来自 LangGraph 官方文档（docs.langchain.com / reference.langchain.com），未使用第三方转载。\n\n## 1. 持久化需要 checkpointer 吗？\n\n**需要。** 持久化（persistence）依赖 checkpointer（检查点保存器）。官方文档明确：要启用持久化，需在编译图时传入一个 checkpointer，例如 `graph = builder.compile(checkpointer=checkpointer)`；checkpointer 负责保存和恢复图的状态（checkpoint）。同时，`interrupt()` 机制也要求配置 checkpointer 才能保存状态并恢复。\n\n来源：[Persistence — LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/persistence)\n\n## 2. thread_id 的作用是什么？\n\n**thread_id 是每个 checkpoint 的唯一线程标识，是保存和检索状态的主键。** 官方文档说明：thread 是「分配给 checkpointer 保存的每个 checkpoint 的唯一 ID 或线程标识符，包含一系列运行累积的状态」。调用已编译（带 checkpointer）的图时，`thread_id` 是**必需**的，通过 config 的 `configurable` 字段传入；没有它，checkpointer 无法保存状态、无法从 interrupt 恢复、也无法进行时间旅行调试。复用同一个 `thread_id` 可让下一次运行加载上一次的 checkpoint 并继续（用于对话记忆）；`checkpoint_id` 则是可选的，用于定位线程内的某个具体 checkpoint。\n\n来源：[Checkpointers — LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/checkpointers)\n\n## 3. interrupt 恢复使用什么命令？\n\n**使用 `Command(resume=...)`（Python）或 `new Command({ resume: ... })`（JS/TS）恢复。** 官方文档说明：调用 `interrupt(value)` 暂停执行后，要恢复需用**相同的 `thread_id`** 重新调用图，并传入 `Command(resume=...)`；resume 的值会成为节点内 `interrupt()` 调用的返回值。注意：恢复时节点会**从头重新执行** `interrupt()` 之前的逻辑，因此之前的代码需保持幂等。`Command(resume=...)` 是唯一作为 `invoke()/stream()/stream_events()` 输入使用的 Command 模式。\n\n来源：[Interrupts — LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/interrupts)\n\n---\n\n补充说明：以上为官方文档的当前表述。若你使用的是 LangGraph Agent Server（部署环境），官方文档指出其会自动处理持久化，无需手动配置 checkpointer（[Persistence 文档](https://docs.langchain.com/oss/python/langgraph/persistence)）。",
+  "elapsed_seconds": 41.611,
+  "model_usage": {
+    "deepseek-v4-pro": {
+      "input_tokens": 12992,
+      "output_token_details": {},
+      "total_tokens": 13658,
+      "input_token_details": {
+        "cache_read": 9216
+      },
+      "output_tokens": 666
+    }
+  },
+  "cost": {
+    "known_model_usd_interval": [
+      0.00401359,
+      0.00802718
+    ],
+    "unknown_models": [],
+    "complete_model_usage": true,
+    "excludes": [
+      "embedding",
+      "web_search_service_fee",
+      "failed_requests_without_usage"
+    ],
+    "price_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "price_checked": "2026-09-09"
+  },
+  "search_model_costs": [
+    {
+      "known_model_usd_interval": [
+        0.00644965,
+        0.0128993
+      ],
+      "unknown_models": [],
+      "complete_model_usage": true,
+      "excludes": [
+        "embedding",
+        "web_search_service_fee",
+        "failed_requests_without_usage"
+      ],
+      "price_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "price_checked": "2026-09-09"
+    },
+    {
+      "known_model_usd_interval": [
+        0.00436144,
+        0.00872288
+      ],
+      "unknown_models": [],
+      "complete_model_usage": true,
+      "excludes": [
+        "embedding",
+        "web_search_service_fee",
+        "failed_requests_without_usage"
+      ],
+      "price_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "price_checked": "2026-09-09"
+    }
+  ]
+}

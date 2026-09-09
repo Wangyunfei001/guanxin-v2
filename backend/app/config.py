@@ -65,14 +65,6 @@ class Settings(BaseSettings):
 
     # === Deep Research ===
     research_model: str = "deepseek-v4-flash"
-    research_quick_rounds: int = 2
-    research_quick_searches: int = 4
-    research_quick_sources: int = 8
-    research_quick_timeout_seconds: int = 90
-    research_deep_rounds: int = 5
-    research_deep_searches: int = 20
-    research_deep_sources: int = 30
-    research_deep_timeout_seconds: int = 480
 
     # === 预设用户 ===
     preset_users_json: str = ""

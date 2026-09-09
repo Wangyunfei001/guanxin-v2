@@ -180,7 +180,7 @@ Claude Desktop 配置示例（替换绝对路径和密钥，本示例不是已�
 | POST | `/api/agent/workflows/{run_id}/respond` | 提交参数、批准或拒绝工作流 |
 | GET | `/api/agent/research/{run_id}` | 获取研究阶段、预算、任务、来源与报告 |
 | POST | `/api/agent/research/{run_id}/cancel` | 取消自己的研究运行 |
-| POST | `/api/agent/research/{run_id}/resume` | 手动恢复重启后 interrupted 的研究 |
+| POST | `/api/agent/research/{run_id}/resume` | 将 interrupted 历史研究转入新的原生任务（幂等） |
 | GET | `/api/agent/workflows/{run_id}` | 获取工作流计划、步骤、中断与结果 |
 | POST | `/api/agent/workflows/{run_id}/cancel` | 取消自己的等待中工作流 |
 | POST | `/api/agent/workflows/{run_id}/resolve` | admin 接管不确定的风险步骤 |
@@ -189,7 +189,7 @@ Claude Desktop 配置示例（替换绝对路径和密钥，本示例不是已�
 | PUT | `/api/mcp/servers/{server}/tools/{tool}/policy` | admin 标注 MCP 工具风险 |
 | POST | `/api/a2ui/preview` | 使用 `{ "schema": ... }` 预览 |
 
-AI SDK 端点与前端依赖已移除。新链路使用官方 HttpAgentServerAdapter；Python v3 消息事件只做 envelope 适配（tuple → data/node），不自研消息拼接器。研究旧 API 仅为既有记录的恢复兼容保留，新任务不使用旧研究编排。
+AI SDK 端点与前端依赖已移除。新链路使用官方 HttpAgentServerAdapter；Python v3 消息事件只做 envelope 适配（tuple → data/node），不自研消息拼接器。旧研究循环、专用规划/缺口分析/综合器已删除。旧 API 仅保留历史读取、取消和转入原生任务；旧报告、来源与任务作为不可信上下文重新核实，不承诺精确重放旧执行状态。
 
 ### 本轮运行边界
 
@@ -222,6 +222,12 @@ GUANXIN_E2E_AGENT_FIXTURE=1 npm run test:e2e -- e2e/native-agent.spec.ts
 pytest/Playwright 使用系统临时数据目录；Playwright 的 SQLite、checkpoint、Chroma、uploads、users JSON 位于同一临时根目录，结束时精确清理。测试前端使用 `.next-e2e` 和专用端口，不访问现有开发服务。自定义本地实例可设置 `GUANXIN_BACKEND_URL`（Next.js 代理目标）及 `NEXT_DIST_DIR`（独立构建缓存）。
 
 当前测试覆盖 SQLite 幂等与重启持久、外键级联、并发写、租户/用户隔离、RBAC、A2UI 契约、Agent 配置、Deep Agents 工具循环与恢复、结构化工具 Schema、稳定 tool call、Research 来源去重与持久化、工作流 interrupt/resume、风险步骤故障接管及幂等执行。
+
+## 真实模型评估
+
+`cd backend && uv run python -m evaluations.run_live --output ../docs/evaluations/<new-run-directory>` 使用现有模型/Embedding 密钥，在临时数据目录运行四类固定任务，不操作业务数据或自动接受审批。默认模型 `deepseek-v4-pro`，可用 `--model` 或 `--case` 选择。每个新目录独立保留结果，不覆盖历史样本。
+
+报告记录真实模型 token、网页搜索模型 token、服务端搜索动作和峰谷价格估算区间；搜索服务费、Embedding 与未返回 usage 的失败请求不计入已知费用。自动引用溯源不是事实正确性判定，需逐条复核原文。详见 [本轮评估](docs/evaluations/2026-09-09-assessment.md)。付费评估不放入自动 CI。
 
 ## 数据与初始化
 

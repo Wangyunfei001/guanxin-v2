@@ -40,14 +40,14 @@ const TaskIcon: FC<{ task: ResearchTask }> = ({ task }) => {
   return <Circle size={16} className="text-muted-foreground/50" />
 }
 
-export const ResearchDataRenderer: FC<{ data: ResearchData }> = ({ data }) => {
+export const ResearchDataRenderer: FC<{ data: ResearchData; onMigrated?: () => void }> = ({ data, onMigrated }) => {
   const [research, setResearch] = useState<ResearchData>(data as ResearchData)
   const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState("")
 
   useEffect(() => setResearch(data as ResearchData), [data])
 
   useEffect(() => {
-    if (!ACTIVE.has(research.status)) return
     let stopped = false
     const refresh = async () => {
       try {
@@ -57,10 +57,11 @@ export const ResearchDataRenderer: FC<{ data: ResearchData }> = ({ data }) => {
         // Keep the last persisted snapshot during transient network failures.
       }
     }
-    const timer = window.setInterval(() => void refresh(), 1500)
+    void refresh()
+    const timer = ACTIVE.has(research.status) ? window.setInterval(() => void refresh(), 1500) : null
     return () => {
       stopped = true
-      window.clearInterval(timer)
+      if (timer !== null) window.clearInterval(timer)
     }
   }, [research.run_id, research.status])
 
@@ -74,9 +75,12 @@ export const ResearchDataRenderer: FC<{ data: ResearchData }> = ({ data }) => {
 
   const cancel = async () => {
     setBusy(true)
+    setActionError("")
     try {
       const response = await agentApi.cancelResearch(research.run_id)
       if (response.code === 0) setResearch(response.data)
+    } catch {
+      setActionError("操作未完成，请检查当前任务状态后重试。")
     } finally {
       setBusy(false)
     }
@@ -84,9 +88,12 @@ export const ResearchDataRenderer: FC<{ data: ResearchData }> = ({ data }) => {
 
   const resume = async () => {
     setBusy(true)
+    setActionError("")
     try {
       const response = await agentApi.resumeResearch(research.run_id)
-      if (response.code === 0) setResearch(response.data)
+      if (response.code === 0) { setResearch(response.data); onMigrated?.() }
+    } catch {
+      setActionError("操作未完成，请检查当前任务状态后重试。")
     } finally {
       setBusy(false)
     }
@@ -190,13 +197,14 @@ export const ResearchDataRenderer: FC<{ data: ResearchData }> = ({ data }) => {
         </aside>
       </div>
 
+      {actionError && <p role="alert" className="px-4 py-2 text-xs text-destructive">{actionError}</p>}
       {(ACTIVE.has(research.status) || research.status === "interrupted") && (
         <footer className="flex items-center justify-between gap-3 border-t bg-muted/20 px-4 py-3 sm:px-5">
           <p className="truncate font-mono text-[10px] text-muted-foreground">{research.run_id}</p>
           {research.status === "interrupted" ? (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => void resume()}>
               <Play size={14} weight="fill" />
-              恢复
+              用新任务继续
             </Button>
           ) : (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => void cancel()}>

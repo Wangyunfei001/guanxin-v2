@@ -1,0 +1,37 @@
+{
+  "case": "research",
+  "prompt": "请使用 web_search 核实 LangGraph 官方文档：持久化需要 checkpointer 吗？thread_id 的作用是什么？interrupt 恢复使用什么命令？用中文分别给出答案，每项紧邻官方来源链接。不要使用非官方转载，不生成文件。",
+  "requested_model": "deepseek-v4-pro",
+  "started_at": "2026-09-09T06:17:02.862548+00:00",
+  "test_model": false,
+  "status": "error",
+  "error_type": "ProviderTimeoutError",
+  "automated_pass": false,
+  "elapsed_seconds": 62.531,
+  "model_usage": {
+    "deepseek-v4-pro": {
+      "input_tokens": 4602,
+      "output_tokens": 136,
+      "total_tokens": 4738,
+      "input_token_details": {
+        "cache_read": 4480
+      },
+      "output_token_details": {}
+    }
+  },
+  "cost": {
+    "known_model_usd_interval": [
+      0.00044836,
+      0.00089672
+    ],
+    "unknown_models": [],
+    "complete_model_usage": true,
+    "excludes": [
+      "embedding",
+      "web_search_service_fee",
+      "failed_requests_without_usage"
+    ],
+    "price_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "price_checked": "2026-09-09"
+  }
+}

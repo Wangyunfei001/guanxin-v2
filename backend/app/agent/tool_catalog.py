@@ -250,28 +250,6 @@ async def build_tool_catalog(
                 )
             )
         )
-    if "deep_research" in config.enabled_tools:
-        entries.append(
-            CatalogEntry(
-                spec=ToolSpec(
-                    name="deep_research",
-                    display_name="Deep Research",
-                    description="围绕复杂问题执行多轮、多来源研究并生成带引用报告。",
-                    input_schema={
-                        "type": "object",
-                        "properties": {
-                            "goal": {"type": "string"},
-                            "mode": {"type": "string", "enum": ["quick", "deep"]},
-                        },
-                        "required": ["goal"],
-                    },
-                    source_type="provider",
-                    source_name="deepseek",
-                    effect="read",
-                    approval_required=False,
-                )
-            )
-        )
 
     return entries
 

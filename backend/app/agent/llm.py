@@ -33,13 +33,9 @@ def _create_llm(model_name: str, temperature: float, max_tokens: int = 4096):
             api_key=api_key,
             base_url=settings.openai_api_base,
             streaming=True,
+            stream_usage=True,
             max_tokens=max_tokens,
             **model_kwargs,
         )
     except Exception:
         return None
-
-
-def get_tools_desc() -> str:
-    """获取工具描述文本。"""
-    return get_tools_description(get_tools())

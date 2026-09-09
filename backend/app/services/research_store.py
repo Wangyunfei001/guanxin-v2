@@ -47,7 +47,7 @@ def _json(value: str, fallback: Any) -> Any:
 
 
 class ResearchStore:
-    """Own research lifecycle, tasks, sources and resumable event history."""
+    """Read archived research and preserve migration/cancellation history."""
 
     def create_run(
         self,
@@ -139,59 +139,6 @@ class ResearchStore:
         finally:
             conn.close()
 
-    def set_plan(self, run_id: str, plan: dict[str, Any], questions: list[str]) -> None:
-        initialize_database()
-        now = _now()
-        with transaction() as conn:
-            conn.execute(
-                "UPDATE research_runs SET plan_json=?, updated_at=? WHERE run_id=?",
-                (json.dumps(plan, ensure_ascii=False), now, run_id),
-            )
-            for position, question in enumerate(questions):
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO research_tasks(
-                        task_id, run_id, position, question, status,
-                        attempt_count, result_summary, error, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, 'pending', 0, '', '', ?, ?)
-                    """,
-                    (f"task_{uuid.uuid4().hex}", run_id, position, question, now, now),
-                )
-
-    def add_tasks(self, run_id: str, questions: list[str]) -> int:
-        """Append unique gap-analysis questions while preserving stable positions."""
-        if not questions:
-            return 0
-        now = _now()
-        inserted = 0
-        with transaction() as conn:
-            rows = conn.execute(
-                "SELECT question FROM research_tasks WHERE run_id=?",
-                (run_id,),
-            ).fetchall()
-            existing = {row["question"].strip() for row in rows}
-            position = conn.execute(
-                "SELECT COALESCE(MAX(position), -1) + 1 AS value FROM research_tasks WHERE run_id=?",
-                (run_id,),
-            ).fetchone()["value"]
-            for question in questions:
-                normalized = question.strip()
-                if not normalized or normalized in existing:
-                    continue
-                conn.execute(
-                    """
-                    INSERT INTO research_tasks(
-                        task_id, run_id, position, question, status,
-                        attempt_count, result_summary, error, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, 'pending', 0, '', '', ?, ?)
-                    """,
-                    (f"task_{uuid.uuid4().hex}", run_id, position, normalized, now, now),
-                )
-                existing.add(normalized)
-                position += 1
-                inserted += 1
-        return inserted
-
     def set_status(
         self,
         run_id: str,
@@ -219,26 +166,6 @@ class ResearchStore:
                 params,
             )
         self.append_event(run_id, "status", {"status": status, "error": error or ""})
-
-    def update_task(
-        self,
-        task_id: str,
-        status: str,
-        *,
-        result_summary: str = "",
-        error: str = "",
-        increment_attempt: bool = False,
-    ) -> None:
-        attempt = ", attempt_count=attempt_count+1" if increment_attempt else ""
-        with transaction() as conn:
-            conn.execute(
-                f"""
-                UPDATE research_tasks
-                SET status=?, result_summary=?, error=?, updated_at=?{attempt}
-                WHERE task_id=?
-                """,
-                (status, result_summary, error, _now(), task_id),
-            )
 
     def upsert_source(
         self,

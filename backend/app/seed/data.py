@@ -65,7 +65,7 @@ SEED_AGENT_CONFIGS: List[Dict[str, Any]] = [
         "system_prompt": DEMO_SYSTEM_PROMPT,
         "temperature": 0.7,
         "max_tokens": 4096,
-        "enabled_tools": ["kb_retrieval", "web_search", "deep_research"],
+        "enabled_tools": ["kb_retrieval", "web_search"],
         "enabled_skills": ["data_analysis", "text_summary"],
         "mcp_servers": ["weather"],
     },

@@ -1,0 +1,446 @@
+{
+  "cases": [
+    {
+      "case": "knowledge",
+      "prompt": "请检索知识库中的星桥项目验收规范，回答正式交付前需要多少个工作日的验收、谁签字，以及失败后多久复测。引用文件名和原文，未知信息不要猜。",
+      "requested_model": "deepseek-v4-pro",
+      "started_at": "2026-09-09T06:16:57.791938+00:00",
+      "test_model": false,
+      "messages": [
+        {
+          "type": "human",
+          "content": "请检索知识库中的星桥项目验收规范，回答正式交付前需要多少个工作日的验收、谁签字，以及失败后多久复测。引用文件名和原文，未知信息不要猜。",
+          "name": null
+        },
+        {
+          "type": "ai",
+          "content": "",
+          "tool_calls": [
+            {
+              "name": "kb_retrieval",
+              "args": {
+                "query": "星桥项目验收规范 正式交付前 验收工作日 签字 复测"
+              },
+              "id": "call_00_z28TRmLMKIe3BaN8a3Aw2573",
+              "type": "tool_call"
+            }
+          ],
+          "name": "guanxin",
+          "usage_metadata": {
+            "input_tokens": 4585,
+            "output_tokens": 62,
+            "total_tokens": 4647,
+            "input_token_details": {
+              "cache_read": 0
+            },
+            "output_token_details": {}
+          }
+        },
+        {
+          "type": "tool",
+          "content": "【片段 1】来源: 星桥验收规范.txt | 相关度: 0.87\n星桥验收规范：正式交付前验收期为5个工作日，由项目负责人签字。验收失败后应在2个工作日内复测。",
+          "name": "kb_retrieval"
+        },
+        {
+          "type": "ai",
+          "content": "根据知识库检索结果，回答如下：\n\n**星桥项目验收规范**（来源文件：`星桥验收规范.txt`）\n\n- **验收工作日**：正式交付前验收期为 **5 个工作日**\n- **签字人**：由 **项目负责人** 签字\n- **失败后复测**：验收失败后应在 **2 个工作日内** 复测\n\n原文引用：\n\n> 星桥验收规范：正式交付前验收期为5个工作日，由项目负责人签字。验收失败后应在2个工作日内复测。\n\n以上三项信息均来自知识库检索到的原文，无缺失或需推测的内容。",
+          "tool_calls": [],
+          "name": "guanxin",
+          "usage_metadata": {
+            "input_tokens": 4710,
+            "output_tokens": 133,
+            "total_tokens": 4843,
+            "input_token_details": {
+              "cache_read": 4608
+            },
+            "output_token_details": {}
+          }
+        }
+      ],
+      "files": {},
+      "status": "completed",
+      "checks": {
+        "required_facts_present": true,
+        "required_tools_called": true
+      },
+      "automated_pass": true,
+      "citations": {
+        "links": [],
+        "links_observed_in_tool_evidence": [],
+        "unobserved_links": [],
+        "domains": [],
+        "entailment": "requires_human_review"
+      },
+      "search_usage": [],
+      "answer": "\n根据知识库检索结果，回答如下：\n\n**星桥项目验收规范**（来源文件：`星桥验收规范.txt`）\n\n- **验收工作日**：正式交付前验收期为 **5 个工作日**\n- **签字人**：由 **项目负责人** 签字\n- **失败后复测**：验收失败后应在 **2 个工作日内** 复测\n\n原文引用：\n\n> 星桥验收规范：正式交付前验收期为5个工作日，由项目负责人签字。验收失败后应在2个工作日内复测。\n\n以上三项信息均来自知识库检索到的原文，无缺失或需推测的内容。",
+      "elapsed_seconds": 5.07,
+      "model_usage": {
+        "deepseek-v4-pro": {
+          "output_token_details": {},
+          "input_token_details": {
+            "cache_read": 4608
+          },
+          "input_tokens": 9295,
+          "output_tokens": 195,
+          "total_tokens": 9490
+        }
+      },
+      "cost": {
+        "known_model_usd_interval": [
+          0.0035809,
+          0.00716179
+        ],
+        "unknown_models": [],
+        "complete_model_usage": true,
+        "excludes": [
+          "embedding",
+          "web_search_service_fee",
+          "failed_requests_without_usage"
+        ],
+        "price_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+        "price_checked": "2026-09-09"
+      }
+    },
+    {
+      "case": "research",
+      "prompt": "请使用 web_search 核实 LangGraph 官方文档：持久化需要 checkpointer 吗？thread_id 的作用是什么？interrupt 恢复使用什么命令？用中文分别给出答案，每项紧邻官方来源链接。不要使用非官方转载，不生成文件。",
+      "requested_model": "deepseek-v4-pro",
+      "started_at": "2026-09-09T06:17:02.862548+00:00",
+      "test_model": false,
+      "status": "error",
+      "error_type": "ProviderTimeoutError",
+      "automated_pass": false,
+      "elapsed_seconds": 62.531,
+      "model_usage": {
+        "deepseek-v4-pro": {
+          "input_tokens": 4602,
+          "output_tokens": 136,
+          "total_tokens": 4738,
+          "input_token_details": {
+            "cache_read": 4480
+          },
+          "output_token_details": {}
+        }
+      },
+      "cost": {
+        "known_model_usd_interval": [
+          0.00044836,
+          0.00089672
+        ],
+        "unknown_models": [],
+        "complete_model_usage": true,
+        "excludes": [
+          "embedding",
+          "web_search_service_fee",
+          "failed_requests_without_usage"
+        ],
+        "price_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+        "price_checked": "2026-09-09"
+      }
+    },
+    {
+      "case": "report",
+      "prompt": "仅根据以下给定资料，写一份简短中文报告，保存为 /reports/acceptance.md。资料A：星桥项目验收期为5个工作日，由项目负责人签字（来源：https://example.com/eval/spec）。资料B：复测在2个工作日内进行（来源：https://example.com/eval/retest）。逐条标明来源，说明这些是用户提供的评估资料而非已联网核实的事实，不增加其他事实。最后告知文件路径。",
+      "requested_model": "deepseek-v4-pro",
+      "started_at": "2026-09-09T06:18:05.395167+00:00",
+      "test_model": false,
+      "messages": [
+        {
+          "type": "human",
+          "content": "仅根据以下给定资料，写一份简短中文报告，保存为 /reports/acceptance.md。资料A：星桥项目验收期为5个工作日，由项目负责人签字（来源：https://example.com/eval/spec）。资料B：复测在2个工作日内进行（来源：https://example.com/eval/retest）。逐条标明来源，说明这些是用户提供的评估资料而非已联网核实的事实，不增加其他事实。最后告知文件路径。",
+          "name": null
+        },
+        {
+          "type": "ai",
+          "content": "我将根据你提供的两份资料撰写报告并保存。",
+          "tool_calls": [
+            {
+              "name": "write_file",
+              "args": {
+                "file_path": "/reports/acceptance.md",
+                "content": "# 星桥项目验收说明\n\n> 说明：本报告仅依据用户提供的评估资料撰写，未进行联网核实，也未增加其他事实。\n\n## 一、验收期\n\n星桥项目验收期为 5 个工作日，由项目负责人签字。\n\n- 来源：https://example.com/eval/spec\n\n## 二、复测\n\n复测在 2 个工作日内进行。\n\n- 来源：https://example.com/eval/retest\n\n## 附注\n\n以上两条内容均来自用户提供的评估资料，属于用户提供的信息，而非已联网核实的事实。\n"
+              },
+              "id": "call_00_4O2d8g5de3Pk9ES5dAtH5903",
+              "type": "tool_call"
+            }
+          ],
+          "name": "guanxin",
+          "usage_metadata": {
+            "input_tokens": 4645,
+            "output_tokens": 200,
+            "total_tokens": 4845,
+            "input_token_details": {
+              "cache_read": 4480
+            },
+            "output_token_details": {}
+          }
+        },
+        {
+          "type": "tool",
+          "content": "Updated file /reports/acceptance.md",
+          "name": "write_file"
+        },
+        {
+          "type": "ai",
+          "content": "报告已保存至 `/reports/acceptance.md`。\n\n内容要点：\n- **验收期**：星桥项目验收期为 5 个工作日，由项目负责人签字（来源：https://example.com/eval/spec）。\n- **复测**：复测在 2 个工作日内进行（来源：https://example.com/eval/retest）。\n\n两条内容均逐条标明来源，并注明这些是用户提供的评估资料、而非已联网核实的事实，未增加其他事实。",
+          "tool_calls": [],
+          "name": "guanxin",
+          "usage_metadata": {
+            "input_tokens": 4866,
+            "output_tokens": 105,
+            "total_tokens": 4971,
+            "input_token_details": {
+              "cache_read": 4736
+            },
+            "output_token_details": {}
+          }
+        }
+      ],
+      "files": {
+        "/reports/acceptance.md": {
+          "content": "# 星桥项目验收说明\n\n> 说明：本报告仅依据用户提供的评估资料撰写，未进行联网核实，也未增加其他事实。\n\n## 一、验收期\n\n星桥项目验收期为 5 个工作日，由项目负责人签字。\n\n- 来源：https://example.com/eval/spec\n\n## 二、复测\n\n复测在 2 个工作日内进行。\n\n- 来源：https://example.com/eval/retest\n\n## 附注\n\n以上两条内容均来自用户提供的评估资料，属于用户提供的信息，而非已联网核实的事实。\n",
+          "encoding": "utf-8",
+          "created_at": "2026-09-09T06:18:09.054060+00:00",
+          "modified_at": "2026-09-09T06:18:09.054060+00:00"
+        }
+      },
+      "status": "completed",
+      "checks": {
+        "required_facts_present": true,
+        "required_tools_called": true,
+        "file_exists": true,
+        "traceable_citations": false
+      },
+      "automated_pass": false,
+      "citations": {
+        "links": [],
+        "links_observed_in_tool_evidence": [],
+        "unobserved_links": [],
+        "domains": [],
+        "entailment": "requires_human_review"
+      },
+      "search_usage": [],
+      "answer": "# 星桥项目验收说明\n\n> 说明：本报告仅依据用户提供的评估资料撰写，未进行联网核实，也未增加其他事实。\n\n## 一、验收期\n\n星桥项目验收期为 5 个工作日，由项目负责人签字。\n\n- 来源：https://example.com/eval/spec\n\n## 二、复测\n\n复测在 2 个工作日内进行。\n\n- 来源：https://example.com/eval/retest\n\n## 附注\n\n以上两条内容均来自用户提供的评估资料，属于用户提供的信息，而非已联网核实的事实。\n",
+      "elapsed_seconds": 5.351,
+      "model_usage": {
+        "deepseek-v4-pro": {
+          "output_token_details": {},
+          "input_token_details": {
+            "cache_read": 9216
+          },
+          "input_tokens": 9511,
+          "output_tokens": 305,
+          "total_tokens": 9816
+        }
+      },
+      "cost": {
+        "known_model_usd_interval": [
+          0.00100135,
+          0.0020027
+        ],
+        "unknown_models": [],
+        "complete_model_usage": true,
+        "excludes": [
+          "embedding",
+          "web_search_service_fee",
+          "failed_requests_without_usage"
+        ],
+        "price_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+        "price_checked": "2026-09-09"
+      }
+    },
+    {
+      "case": "approval",
+      "prompt": "请为团队新增一个用户名 eval_member 的普通用户，邮箱 eval_member@example.com。先建立业务审批流程，等待我确认；禁止直接执行或声称用户已经创建。",
+      "requested_model": "deepseek-v4-pro",
+      "started_at": "2026-09-09T06:18:10.747537+00:00",
+      "test_model": false,
+      "messages": [
+        {
+          "type": "human",
+          "content": "请为团队新增一个用户名 eval_member 的普通用户，邮箱 eval_member@example.com。先建立业务审批流程，等待我确认；禁止直接执行或声称用户已经创建。",
+          "name": null
+        },
+        {
+          "type": "ai",
+          "content": "我来为这个新增用户请求建立业务审批流程。",
+          "tool_calls": [
+            {
+              "name": "request_business_workflow",
+              "args": {
+                "goal": "新增普通用户：用户名 eval_member，邮箱 eval_member@example.com"
+              },
+              "id": "call_00_WutjzMCsErNVGi8RsulB1641",
+              "type": "tool_call"
+            }
+          ],
+          "name": "guanxin",
+          "usage_metadata": {
+            "input_tokens": 4585,
+            "output_tokens": 72,
+            "total_tokens": 4657,
+            "input_token_details": {
+              "cache_read": 4480
+            },
+            "output_token_details": {}
+          }
+        },
+        {
+          "type": "tool",
+          "content": "{\"run_id\": \"c95ed23a-ba30-4ce2-b5fb-a164843ea5a3\", \"conversation_id\": \"04ebfb1c-35f2-4787-a4de-cfbd6103e8f1\", \"agent_id\": \"default\", \"goal\": \"新增普通用户：用户名 eval_member，邮箱 eval_member@example.com\", \"summary\": \"执行单步操作：创建用户\", \"status\": \"waiting_input\", \"current_step_index\": 0, \"version\": 2, \"last_error\": \"\", \"steps\": [{\"step_id\": \"step_1\", \"position\": 0, \"title\": \"创建用户\", \"tool_name\": \"skill__create_user\", \"category\": \"skill\", \"tool_category\": \"skill\", \"risk\": \"write\", \"status\": \"waiting_input\", \"attempt_count\": 0, \"result\": null, \"error\": \"\"}], \"pending_interrupt\": {\"interrupt_id\": \"input_c95ed23a-ba30-4ce2-b5fb-a164843ea5a3_step_1\", \"kind\": \"input\", \"payload\": {\"title\": \"补充参数：创建用户\", \"fields\": [{\"name\": \"email\", \"label\": \"邮箱地址\", \"type\": \"email\", \"required\": true, \"default\": null, \"options\": []}, {\"name\": \"username\", \"label\": \"用户名（登录名）\", \"type\": \"string\", \"required\": true, \"default\": null, \"options\": []}]}}, \"interrupts\": [{\"interrupt_id\": \"input_c95ed23a-ba30-4ce2-b5fb-a164843ea5a3_step_1\", \"step_id\": \"step_1\", \"kind\": \"input\", \"status\": \"pending\", \"payload\": {\"title\": \"补充参数：创建用户\", \"fields\": [{\"name\": \"email\", \"label\": \"邮箱地址\", \"type\": \"email\", \"required\": true, \"default\": null, \"options\": []}, {\"name\": \"username\", \"label\": \"用户名（登录名）\", \"type\": \"string\", \"required\": true, \"default\": null, \"options\": []}]}, \"created_at\": \"2026-09-09T06:18:12.357772+00:00\", \"updated_at\": \"2026-09-09T06:18:12.357772+00:00\"}], \"created_at\": \"2026-09-09T06:18:12.345825+00:00\", \"updated_at\": \"2026-09-09T06:18:12.360422+00:00\"}",
+          "name": "request_business_workflow"
+        },
+        {
+          "type": "ai",
+          "content": "业务审批流程已建立，目前处于**等待输入**状态，尚未执行任何创建操作。\n\n**审批流程信息：**\n- 流程目标：新增普通用户（用户名 `eval_member`，邮箱 `eval_member@example.com`）\n- 待执行步骤：创建用户（`skill__create_user`，风险等级：write）\n- 当前状态：`waiting_input`（等待补充参数）\n\n**需要你确认/补充的参数：**\n| 参数 | 说明 | 建议值 |\n|------|------|--------|\n| username | 用户名（登录名） | `eval_member` |\n| email | 邮箱地址 | `eval_member@example.com` |\n\n请确认以上信息无误。在你明确确认之前，我不会执行创建，也不会声称用户已创建。确认后，流程将进入审批环节，由你完成后续处理。",
+          "tool_calls": [],
+          "name": "guanxin",
+          "usage_metadata": {
+            "input_tokens": 5260,
+            "output_tokens": 183,
+            "total_tokens": 5443,
+            "input_token_details": {
+              "cache_read": 4608
+            },
+            "output_token_details": {}
+          }
+        }
+      ],
+      "files": {},
+      "workflow": {
+        "run_id": "c95ed23a-ba30-4ce2-b5fb-a164843ea5a3",
+        "tenant_id": "evaluation",
+        "user_id": "eval-user",
+        "conversation_id": "04ebfb1c-35f2-4787-a4de-cfbd6103e8f1",
+        "agent_id": "default",
+        "goal": "新增普通用户：用户名 eval_member，邮箱 eval_member@example.com",
+        "summary": "执行单步操作：创建用户",
+        "plan": {
+          "goal": "新增普通用户：用户名 eval_member，邮箱 eval_member@example.com",
+          "summary": "执行单步操作：创建用户",
+          "steps": [
+            {
+              "step_id": "step_1",
+              "title": "创建用户",
+              "tool_name": "skill__create_user",
+              "arguments": {
+                "username": "$inputs.username",
+                "email": "$inputs.email",
+                "role": "user"
+              }
+            }
+          ]
+        },
+        "status": "waiting_input",
+        "current_step_index": 0,
+        "checkpoint_thread_id": "c95ed23a-ba30-4ce2-b5fb-a164843ea5a3",
+        "version": 2,
+        "last_error": "",
+        "steps": [
+          {
+            "step_id": "step_1",
+            "db_step_id": "c95ed23a-ba30-4ce2-b5fb-a164843ea5a3:step_1",
+            "position": 0,
+            "title": "创建用户",
+            "tool_name": "skill__create_user",
+            "tool_category": "skill",
+            "arguments": {
+              "username": "$inputs.username",
+              "email": "$inputs.email",
+              "role": "user"
+            },
+            "resolved_arguments": {},
+            "risk": "write",
+            "status": "waiting_input",
+            "attempt_count": 0,
+            "idempotency_key": "workflow:c95ed23a-ba30-4ce2-b5fb-a164843ea5a3:step_1",
+            "result": null,
+            "error": "",
+            "created_at": "2026-09-09T06:18:12.345825+00:00",
+            "updated_at": "2026-09-09T06:18:12.359646+00:00"
+          }
+        ],
+        "interrupts": [
+          {
+            "interrupt_id": "input_c95ed23a-ba30-4ce2-b5fb-a164843ea5a3_step_1",
+            "step_id": "step_1",
+            "db_step_id": "c95ed23a-ba30-4ce2-b5fb-a164843ea5a3:step_1",
+            "kind": "input",
+            "status": "pending",
+            "payload": {
+              "title": "补充参数：创建用户",
+              "fields": [
+                {
+                  "name": "email",
+                  "label": "邮箱地址",
+                  "type": "email",
+                  "required": true,
+                  "default": null,
+                  "options": []
+                },
+                {
+                  "name": "username",
+                  "label": "用户名（登录名）",
+                  "type": "string",
+                  "required": true,
+                  "default": null,
+                  "options": []
+                }
+              ]
+            },
+            "response": {},
+            "created_at": "2026-09-09T06:18:12.357772+00:00",
+            "updated_at": "2026-09-09T06:18:12.357772+00:00"
+          }
+        ],
+        "created_at": "2026-09-09T06:18:12.345825+00:00",
+        "updated_at": "2026-09-09T06:18:12.360422+00:00"
+      },
+      "status": "completed",
+      "checks": {
+        "required_facts_present": true,
+        "required_tools_called": true,
+        "waiting_for_user": true,
+        "no_business_write": true
+      },
+      "automated_pass": true,
+      "citations": {
+        "links": [],
+        "links_observed_in_tool_evidence": [],
+        "unobserved_links": [],
+        "domains": [],
+        "entailment": "requires_human_review"
+      },
+      "search_usage": [],
+      "answer": "我来为这个新增用户请求建立业务审批流程。\n业务审批流程已建立，目前处于**等待输入**状态，尚未执行任何创建操作。\n\n**审批流程信息：**\n- 流程目标：新增普通用户（用户名 `eval_member`，邮箱 `eval_member@example.com`）\n- 待执行步骤：创建用户（`skill__create_user`，风险等级：write）\n- 当前状态：`waiting_input`（等待补充参数）\n\n**需要你确认/补充的参数：**\n| 参数 | 说明 | 建议值 |\n|------|------|--------|\n| username | 用户名（登录名） | `eval_member` |\n| email | 邮箱地址 | `eval_member@example.com` |\n\n请确认以上信息无误。在你明确确认之前，我不会执行创建，也不会声称用户已创建。确认后，流程将进入审批环节，由你完成后续处理。",
+      "elapsed_seconds": 5.088,
+      "model_usage": {
+        "deepseek-v4-pro": {
+          "output_token_details": {},
+          "input_token_details": {
+            "cache_read": 9088
+          },
+          "input_tokens": 9845,
+          "output_tokens": 255,
+          "total_tokens": 10100
+        }
+      },
+      "cost": {
+        "known_model_usd_interval": [
+          0.00120446,
+          0.00240891
+        ],
+        "unknown_models": [],
+        "complete_model_usage": true,
+        "excludes": [
+          "embedding",
+          "web_search_service_fee",
+          "failed_requests_without_usage"
+        ],
+        "price_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+        "price_checked": "2026-09-09"
+      }
+    }
+  ],
+  "manual_review_required": true
+}

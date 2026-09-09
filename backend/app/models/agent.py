@@ -23,7 +23,7 @@ class AgentConfig:
     temperature: float = 0.7
     max_tokens: int = 4096
     enabled_tools: List[str] = field(
-        default_factory=lambda: ["kb_retrieval", "web_search", "deep_research"]
+        default_factory=lambda: ["kb_retrieval", "web_search"]
     )
     enabled_skills: List[str] = field(default_factory=list)
     mcp_servers: List[str] = field(default_factory=list)
