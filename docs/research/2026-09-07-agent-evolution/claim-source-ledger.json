@@ -1,0 +1,630 @@
+[
+  {
+    "title": "封版验收报告",
+    "publisher": "本地观心仓库",
+    "url": "/Users/wyf/workspace/aicoding/guanxin-v2/docs/releases/v0.2.0-demo-acceptance.md",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 47,
+        "claim": "证据：[封版验收报告](/Users/wyf/workspace/aicoding/guanxin-v2/docs/releases/v0.2.0-demo-acceptance.md)、[执行器](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py)、[工具目录](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/tool_catalog.py)、[流式接口](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py)、[工作流引擎](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/workflows/engine.py)、[身份存储](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/models/tenant.py)。"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "执行器",
+    "publisher": "本地观心仓库",
+    "url": "/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 47,
+        "claim": "证据：[封版验收报告](/Users/wyf/workspace/aicoding/guanxin-v2/docs/releases/v0.2.0-demo-acceptance.md)、[执行器](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py)、[工具目录](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/tool_catalog.py)、[流式接口](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py)、[工作流引擎](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/workflows/engine.py)、[身份存储](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/models/tenant.py)。"
+      },
+      {
+        "source_line": 143,
+        "claim": "本地普通对话组装将历史转换为 role/content，说明保存完整 UI parts 不等于下一轮模型能恢复同样的工具事实。建议引入 ContextBuilder：明确系统约束、当前目标、近期对话、已核验结果和按需材料；将旧工具输出转为可检索引用，并保存原文。[本地执行器](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "工具目录",
+    "publisher": "本地观心仓库",
+    "url": "/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/tool_catalog.py",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 47,
+        "claim": "证据：[封版验收报告](/Users/wyf/workspace/aicoding/guanxin-v2/docs/releases/v0.2.0-demo-acceptance.md)、[执行器](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py)、[工具目录](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/tool_catalog.py)、[流式接口](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py)、[工作流引擎](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/workflows/engine.py)、[身份存储](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/models/tenant.py)。"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "流式接口",
+    "publisher": "本地观心仓库",
+    "url": "/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 47,
+        "claim": "证据：[封版验收报告](/Users/wyf/workspace/aicoding/guanxin-v2/docs/releases/v0.2.0-demo-acceptance.md)、[执行器](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py)、[工具目录](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/tool_catalog.py)、[流式接口](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py)、[工作流引擎](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/workflows/engine.py)、[身份存储](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/models/tenant.py)。"
+      },
+      {
+        "source_line": 170,
+        "claim": "当前研究直接在请求流中执行。建议由 TaskRun 接收任务、持久队列交给 worker、浏览器订阅事件。关闭页面只断开订阅；取消任务是另一个显式动作。重连依据 sequence 补齐事件，而不是重新提交一次任务。[本地 AI SDK 接口](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "工作流引擎",
+    "publisher": "本地观心仓库",
+    "url": "/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/workflows/engine.py",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 47,
+        "claim": "证据：[封版验收报告](/Users/wyf/workspace/aicoding/guanxin-v2/docs/releases/v0.2.0-demo-acceptance.md)、[执行器](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py)、[工具目录](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/tool_catalog.py)、[流式接口](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py)、[工作流引擎](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/workflows/engine.py)、[身份存储](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/models/tenant.py)。"
+      },
+      {
+        "source_line": 184,
+        "claim": "观心现有工作流已经处理审批和不确定状态，应保留并扩展。所谓“恢复”不能被理解为重复播放所有工具调用。Claude 的文件检查点也不覆盖外部系统变化。[本地工作流引擎](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/workflows/engine.py)、[Anthropic：Checkpoints 边界](https://code.claude.com/docs/en/how-claude-code-works)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "身份存储",
+    "publisher": "本地观心仓库",
+    "url": "/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/models/tenant.py",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 47,
+        "claim": "证据：[封版验收报告](/Users/wyf/workspace/aicoding/guanxin-v2/docs/releases/v0.2.0-demo-acceptance.md)、[执行器](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py)、[工具目录](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/tool_catalog.py)、[流式接口](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py)、[工作流引擎](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/workflows/engine.py)、[身份存储](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/models/tenant.py)。"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Anthropic：How Claude Code works",
+    "publisher": "Anthropic",
+    "url": "https://code.claude.com/docs/en/how-claude-code-works",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn18view0",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 55,
+        "claim": "官方将核心行为描述为收集上下文、采取行动、验证结果，并依据结果继续调整。终端、桌面、IDE 与 Web 等入口共享底层循环。会话恢复、上下文压缩和跨会话记忆属于不同机制；文件检查点不覆盖数据库、API 或部署副作用。[Anthropic：How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works)"
+      },
+      {
+        "source_line": 184,
+        "claim": "观心现有工作流已经处理审批和不确定状态，应保留并扩展。所谓“恢复”不能被理解为重复播放所有工具调用。Claude 的文件检查点也不覆盖外部系统变化。[本地工作流引擎](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/workflows/engine.py)、[Anthropic：Checkpoints 边界](https://code.claude.com/docs/en/how-claude-code-works)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Claude Code Architecture：中文入口",
+    "publisher": "第三方 Claude Code Architecture",
+    "url": "https://ccb.agent-aura.top/docs/introduction/what-is-claude-code",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 57,
+        "claim": "用户提供的中文页面是第三方架构说明，其中“无 GUI”等定位与现行官方文档不同。本文只将其作为发现入口，不以其内部文件名、逆向分层或版本宏作为官方架构证据。[Claude Code Architecture：中文入口](https://ccb.agent-aura.top/docs/introduction/what-is-claude-code)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "LangChain：Code 产品",
+    "publisher": "LangChain / PyPI",
+    "url": "https://docs.langchain.com/oss/deepagents/code/overview",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn19view0",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 61,
+        "claim": "用户链接指向 Deep Agents Code，即 dcode 终端产品。应评估的集成对象是独立的 Deep Agents SDK。它构建在 LangChain 与 LangGraph 上，组织文件上下文、子任务和记忆等能力。当前文档说明 v0.7 起规划为可选项，需显式配置 TodoListMiddleware。[LangChain：Code 产品](https://docs.langchain.com/oss/deepagents/code/overview)、[SDK 概览](https://docs.langchain.com/oss/python/deepagents/overview)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "SDK 概览",
+    "publisher": "LangChain / PyPI",
+    "url": "https://docs.langchain.com/oss/python/deepagents/overview",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn19view1",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 61,
+        "claim": "用户链接指向 Deep Agents Code，即 dcode 终端产品。应评估的集成对象是独立的 Deep Agents SDK。它构建在 LangChain 与 LangGraph 上，组织文件上下文、子任务和记忆等能力。当前文档说明 v0.7 起规划为可选项，需显式配置 TodoListMiddleware。[LangChain：Code 产品](https://docs.langchain.com/oss/deepagents/code/overview)、[SDK 概览](https://docs.langchain.com/oss/python/deepagents/overview)"
+      },
+      {
+        "source_line": 210,
+        "claim": "自定义 tools 参数增加工具，不会自动移除内置能力。需显式检查候选实际暴露的文件工具、子代理和执行工具，并逐一收口。当前权限规则无匹配时允许，且不覆盖任意命令执行的 sandbox 后端；本地 FilesystemBackend 也被官方列为不适合 Web server/HTTP API。[LangChain：工具与权限](https://docs.langchain.com/oss/python/deepagents/overview)、[Backends](https://docs.langchain.com/oss/python/deepagents/backends)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "DeepSeek：仓库说明",
+    "publisher": "DeepSeek",
+    "url": "https://github.com/deepseek-ai/deepseek-harness",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn7view0",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 65,
+        "claim": "官方仓库确认它由 DeepSeek 开发，基于 Cordis，采用插件化组合；目前仍为开发者预览，明确提示不兼容变更。架构将模型、工具、循环、持久化等能力分开组合，会话事实与运行时扩展事件也有区分。[DeepSeek：仓库说明](https://github.com/deepseek-ai/deepseek-harness)、[架构参考](https://deepseek-harness.github.io/deepseek-harness/reference/)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "架构参考",
+    "publisher": "DeepSeek",
+    "url": "https://deepseek-harness.github.io/deepseek-harness/reference/",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn1view0",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 65,
+        "claim": "官方仓库确认它由 DeepSeek 开发，基于 Cordis，采用插件化组合；目前仍为开发者预览，明确提示不兼容变更。架构将模型、工具、循环、持久化等能力分开组合，会话事实与运行时扩展事件也有区分。[DeepSeek：仓库说明](https://github.com/deepseek-ai/deepseek-harness)、[架构参考](https://deepseek-harness.github.io/deepseek-harness/reference/)"
+      },
+      {
+        "source_line": 129,
+        "claim": "记录 run/step/tool/approval/artifact 的关键持久事实，使用 run_id、event_id、递增 sequence、schema_version 和父子关系。进度通知和展示快照从这些事实生成。DeepSeek Harness 的事实日志与投影分离值得参考，但其完整 Cordis/Typert 架构没有必要整体迁入 Python 平台。[DeepSeek：架构参考](https://deepseek-harness.github.io/deepseek-harness/reference/)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Anthropic：Memory",
+    "publisher": "Anthropic",
+    "url": "https://code.claude.com/docs/en/memory",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 154,
+        "claim": "Claude 的记忆文档强调记忆是上下文而非强制配置；其 Skills 支持按需加载。Deep Agents 的上下文机制包括长结果卸载与摘要，但具体阈值是版本实现细节，不适合作为观心不可变的产品规则。[Anthropic：Memory](https://code.claude.com/docs/en/memory)、[Skills](https://code.claude.com/docs/en/skills)、[LangChain：Context engineering](https://docs.langchain.com/oss/python/deepagents/context-engineering)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Skills",
+    "publisher": "Anthropic",
+    "url": "https://code.claude.com/docs/en/skills",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 154,
+        "claim": "Claude 的记忆文档强调记忆是上下文而非强制配置；其 Skills 支持按需加载。Deep Agents 的上下文机制包括长结果卸载与摘要，但具体阈值是版本实现细节，不适合作为观心不可变的产品规则。[Anthropic：Memory](https://code.claude.com/docs/en/memory)、[Skills](https://code.claude.com/docs/en/skills)、[LangChain：Context engineering](https://docs.langchain.com/oss/python/deepagents/context-engineering)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "LangChain：Context engineering",
+    "publisher": "LangChain / PyPI",
+    "url": "https://docs.langchain.com/oss/python/deepagents/context-engineering",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 154,
+        "claim": "Claude 的记忆文档强调记忆是上下文而非强制配置；其 Skills 支持按需加载。Deep Agents 的上下文机制包括长结果卸载与摘要，但具体阈值是版本实现细节，不适合作为观心不可变的产品规则。[Anthropic：Memory](https://code.claude.com/docs/en/memory)、[Skills](https://code.claude.com/docs/en/skills)、[LangChain：Context engineering](https://docs.langchain.com/oss/python/deepagents/context-engineering)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "本地 BaseSkill",
+    "publisher": "本地观心仓库",
+    "url": "/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/skills/base.py",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 158,
+        "claim": "当前 BaseSkill 是 Python 可执行插件。建议新增“工作方法包”，以 SKILL.md 和资源描述目标、步骤、输入、产物格式与验证样例，并以独立 manifest 保存版本、工具需求和批准范围。方法包组合工具，不能通过提示词获得更高权限。[本地 BaseSkill](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/skills/base.py)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "LangChain：Backends",
+    "publisher": "LangChain / PyPI",
+    "url": "https://docs.langchain.com/oss/python/deepagents/backends",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn19view2;turn21view0;turn21view1",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 162,
+        "claim": "多用户 StoreBackend 必须显式定义 namespace。本系统建议至少区分租户、用户或项目、用途；身份来自运行上下文，不来自模型参数。[LangChain：Backends](https://docs.langchain.com/oss/python/deepagents/backends)"
+      },
+      {
+        "source_line": 210,
+        "claim": "自定义 tools 参数增加工具，不会自动移除内置能力。需显式检查候选实际暴露的文件工具、子代理和执行工具，并逐一收口。当前权限规则无匹配时允许，且不覆盖任意命令执行的 sandbox 后端；本地 FilesystemBackend 也被官方列为不适合 Web server/HTTP API。[LangChain：工具与权限](https://docs.langchain.com/oss/python/deepagents/overview)、[Backends](https://docs.langchain.com/oss/python/deepagents/backends)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Anthropic：Permissions",
+    "publisher": "Anthropic",
+    "url": "https://code.claude.com/docs/en/permissions",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn18view1",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 188,
+        "claim": "绑定 actor、run_id、tool_call_id、目标资源、规范化参数摘要、版本和有效期。参数或权限改变后重新判断批准是否仍有效。优先在 Tool Gateway 完成执行前鉴权与参数校验，执行后记录回执；后置钩子不能撤销已经发生的副作用。[Anthropic：Permissions](https://code.claude.com/docs/en/permissions)、[Hooks reference](https://code.claude.com/docs/en/hooks)、[DeepSeek：工具流水线](https://deepseek-harness.github.io/deepseek-harness/reference/tool-execution-pipeline)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Hooks reference",
+    "publisher": "Anthropic",
+    "url": "https://code.claude.com/docs/en/hooks",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 188,
+        "claim": "绑定 actor、run_id、tool_call_id、目标资源、规范化参数摘要、版本和有效期。参数或权限改变后重新判断批准是否仍有效。优先在 Tool Gateway 完成执行前鉴权与参数校验，执行后记录回执；后置钩子不能撤销已经发生的副作用。[Anthropic：Permissions](https://code.claude.com/docs/en/permissions)、[Hooks reference](https://code.claude.com/docs/en/hooks)、[DeepSeek：工具流水线](https://deepseek-harness.github.io/deepseek-harness/reference/tool-execution-pipeline)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "DeepSeek：工具流水线",
+    "publisher": "DeepSeek",
+    "url": "https://deepseek-harness.github.io/deepseek-harness/reference/tool-execution-pipeline",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn4view2",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 188,
+        "claim": "绑定 actor、run_id、tool_call_id、目标资源、规范化参数摘要、版本和有效期。参数或权限改变后重新判断批准是否仍有效。优先在 Tool Gateway 完成执行前鉴权与参数校验，执行后记录回执；后置钩子不能撤销已经发生的副作用。[Anthropic：Permissions](https://code.claude.com/docs/en/permissions)、[Hooks reference](https://code.claude.com/docs/en/hooks)、[DeepSeek：工具流水线](https://deepseek-harness.github.io/deepseek-harness/reference/tool-execution-pipeline)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "PyPI 发布记录",
+    "publisher": "LangChain / PyPI",
+    "url": "https://pypi.org/project/deepagents/",
+    "access_date": "2026-09-04",
+    "publication_date": "2026-09-02",
+    "native_reference": "turn21view2",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 200,
+        "claim": "本轮可见 PyPI 发布包为 deepagents 0.7.13，2026-09-02 上传；main 的 pyproject 同为 0.7.13，要求 Python ≥3.11、LangChain ≥1.4、langchain-core ≥1.6.1。观心当前 uv.lock 与实际环境为 LangChain 1.3.13、core 1.4.9、LangGraph 1.2.9。不得据此推断直接安装兼容。[PyPI 发布记录](https://pypi.org/project/deepagents/)、[官方依赖声明](https://raw.githubusercontent.com/langchain-ai/deepagents/main/libs/deepagents/pyproject.toml)、[本地锁文件](/Users/wyf/workspace/aicoding/guanxin-v2/backend/uv.lock)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "官方依赖声明",
+    "publisher": "LangChain / PyPI",
+    "url": "https://raw.githubusercontent.com/langchain-ai/deepagents/main/libs/deepagents/pyproject.toml",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn20view0",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 200,
+        "claim": "本轮可见 PyPI 发布包为 deepagents 0.7.13，2026-09-02 上传；main 的 pyproject 同为 0.7.13，要求 Python ≥3.11、LangChain ≥1.4、langchain-core ≥1.6.1。观心当前 uv.lock 与实际环境为 LangChain 1.3.13、core 1.4.9、LangGraph 1.2.9。不得据此推断直接安装兼容。[PyPI 发布记录](https://pypi.org/project/deepagents/)、[官方依赖声明](https://raw.githubusercontent.com/langchain-ai/deepagents/main/libs/deepagents/pyproject.toml)、[本地锁文件](/Users/wyf/workspace/aicoding/guanxin-v2/backend/uv.lock)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "本地锁文件",
+    "publisher": "本地观心仓库",
+    "url": "/Users/wyf/workspace/aicoding/guanxin-v2/backend/uv.lock",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 200,
+        "claim": "本轮可见 PyPI 发布包为 deepagents 0.7.13，2026-09-02 上传；main 的 pyproject 同为 0.7.13，要求 Python ≥3.11、LangChain ≥1.4、langchain-core ≥1.6.1。观心当前 uv.lock 与实际环境为 LangChain 1.3.13、core 1.4.9、LangGraph 1.2.9。不得据此推断直接安装兼容。[PyPI 发布记录](https://pypi.org/project/deepagents/)、[官方依赖声明](https://raw.githubusercontent.com/langchain-ai/deepagents/main/libs/deepagents/pyproject.toml)、[本地锁文件](/Users/wyf/workspace/aicoding/guanxin-v2/backend/uv.lock)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "LangChain：Human-in-the-loop",
+    "publisher": "LangChain / PyPI",
+    "url": "https://docs.langchain.com/oss/python/deepagents/human-in-the-loop",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn20view1",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 212,
+        "claim": "HITL 依赖 checkpointer 与相同 thread_id 恢复；一次中断可能涉及多个动作。观心的审批 ID、动作顺序、用户身份及恢复语义必须经过适配测试。[LangChain：Human-in-the-loop](https://docs.langchain.com/oss/python/deepagents/human-in-the-loop)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "LangChain：Event streaming",
+    "publisher": "LangChain / PyPI",
+    "url": "https://docs.langchain.com/oss/python/deepagents/event-streaming",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn20view2;turn21view3",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 214,
+        "claim": "新 event streaming 页面仍标 Beta，其 v3 事件不是 AI SDK 协议。先转换为观心自己的运行事件，再生成现有 UIMessage parts；摘要流和子任务内部输出不能混入最终回答。[LangChain：Event streaming](https://docs.langchain.com/oss/python/deepagents/event-streaming)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Anthropic：Subagents",
+    "publisher": "Anthropic",
+    "url": "https://code.claude.com/docs/en/sub-agents",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 294,
+        "claim": "先测试单 Agent，再对可独立拆分的资料提取或复核使用 2-3 个子任务。比较同一输入的完成率、关键遗漏、总费用、总时间和汇总损失。只有收益超过通信与复核成本才扩大使用。子任务有独立上下文并不自动形成进程或租户隔离。[Anthropic：Subagents](https://code.claude.com/docs/en/sub-agents)、[Sandboxing](https://code.claude.com/docs/en/sandboxing)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Sandboxing",
+    "publisher": "Anthropic",
+    "url": "https://code.claude.com/docs/en/sandboxing",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 294,
+        "claim": "先测试单 Agent，再对可独立拆分的资料提取或复核使用 2-3 个子任务。比较同一输入的完成率、关键遗漏、总费用、总时间和汇总损失。只有收益超过通信与复核成本才扩大使用。子任务有独立上下文并不自动形成进程或租户隔离。[Anthropic：Subagents](https://code.claude.com/docs/en/sub-agents)、[Sandboxing](https://code.claude.com/docs/en/sandboxing)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "LangChain：Sandboxes",
+    "publisher": "LangChain / PyPI",
+    "url": "https://docs.langchain.com/oss/python/deepagents/sandboxes",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 306,
+        "claim": "当任务需要执行生成代码时，采用独立工作区、资源与时间限额、网络约束和受控文件导入导出。业务密钥留在平台侧，通过授权工具访问。LangChain 推荐的 sandbox-as-tool 模式可作为参照。[LangChain：Sandboxes](https://docs.langchain.com/oss/python/deepagents/sandboxes)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "DeepSeek：Sandbox",
+    "publisher": "DeepSeek",
+    "url": "https://deepseek-harness.github.io/deepseek-harness/reference/subsystems/sandbox",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn4view3",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 308,
+        "claim": "DeepSeek 的进程 sandbox 词汇主要定义文件效果，不包含网络和进程可见性的完整隔离承诺；其安全说明还明确表示未经过安全审计，不能当作生产就绪系统。若后续接入，应先作为可替换、隔离的实验执行器，而不承担平台唯一安全边界。[DeepSeek：Sandbox](https://deepseek-harness.github.io/deepseek-harness/reference/subsystems/sandbox)、[Safety](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Safety",
+    "publisher": "DeepSeek",
+    "url": "https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "turn16view0",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 308,
+        "claim": "DeepSeek 的进程 sandbox 词汇主要定义文件效果，不包含网络和进程可见性的完整隔离承诺；其安全说明还明确表示未经过安全审计，不能当作生产就绪系统。若后续接入，应先作为可替换、隔离的实验执行器，而不承担平台唯一安全边界。[DeepSeek：Sandbox](https://deepseek-harness.github.io/deepseek-harness/reference/subsystems/sandbox)、[Safety](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Anthropic：Agent SDK overview",
+    "publisher": "Anthropic",
+    "url": "https://code.claude.com/docs/en/agent-sdk/overview",
+    "access_date": "2026-09-04",
+    "publication_date": "未核实页面更新日期",
+    "native_reference": "agent lane provenance / local inspected file",
+    "confidence": "高：文档或代码直接支持；推论单独标识",
+    "claim_locations": [
+      {
+        "source_line": 321,
+        "claim": "Claude Agent SDK 是可编程的接入对象，不能把终端登录或订阅额度直接等同产品后端授权。后续采购、云部署或对外服务前，应按实际方案重新核对商业条款与数据要求；本文没有做价格或云服务采购比较。[Anthropic：Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview)"
+      }
+    ],
+    "evidence_scope": "2026-09-04历史附录，非全部当日刷新"
+  },
+  {
+    "title": "Anthropic：运行机制",
+    "url": "https://code.claude.com/docs/en/how-claude-code-works",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "来源：[Anthropic：运行机制](https://code.claude.com/docs/en/how-claude-code-works)、[用户给定第三方入口](https://ccb.agent-aura.top/docs/introduction/what-is-claude-code)、[LangChain：Code](https://docs.langchain.com/oss/deepagents/code/overview)、[SDK 概览](https://docs.langchain.com/oss/python/deepagents/overview)、[DeepSeek：架构](https://deepseek-harness.github.io/deepseek-harness/reference/)、[安全说明](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md)。以上本轮于 2026-09-07 读取；页面发布日期未核实。"
+  },
+  {
+    "title": "用户给定第三方入口",
+    "url": "https://ccb.agent-aura.top/docs/introduction/what-is-claude-code",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "来源：[Anthropic：运行机制](https://code.claude.com/docs/en/how-claude-code-works)、[用户给定第三方入口](https://ccb.agent-aura.top/docs/introduction/what-is-claude-code)、[LangChain：Code](https://docs.langchain.com/oss/deepagents/code/overview)、[SDK 概览](https://docs.langchain.com/oss/python/deepagents/overview)、[DeepSeek：架构](https://deepseek-harness.github.io/deepseek-harness/reference/)、[安全说明](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md)。以上本轮于 2026-09-07 读取；页面发布日期未核实。"
+  },
+  {
+    "title": "LangChain：Code",
+    "url": "https://docs.langchain.com/oss/deepagents/code/overview",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "来源：[Anthropic：运行机制](https://code.claude.com/docs/en/how-claude-code-works)、[用户给定第三方入口](https://ccb.agent-aura.top/docs/introduction/what-is-claude-code)、[LangChain：Code](https://docs.langchain.com/oss/deepagents/code/overview)、[SDK 概览](https://docs.langchain.com/oss/python/deepagents/overview)、[DeepSeek：架构](https://deepseek-harness.github.io/deepseek-harness/reference/)、[安全说明](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md)。以上本轮于 2026-09-07 读取；页面发布日期未核实。"
+  },
+  {
+    "title": "SDK 概览",
+    "url": "https://docs.langchain.com/oss/python/deepagents/overview",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "来源：[Anthropic：运行机制](https://code.claude.com/docs/en/how-claude-code-works)、[用户给定第三方入口](https://ccb.agent-aura.top/docs/introduction/what-is-claude-code)、[LangChain：Code](https://docs.langchain.com/oss/deepagents/code/overview)、[SDK 概览](https://docs.langchain.com/oss/python/deepagents/overview)、[DeepSeek：架构](https://deepseek-harness.github.io/deepseek-harness/reference/)、[安全说明](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md)。以上本轮于 2026-09-07 读取；页面发布日期未核实。"
+  },
+  {
+    "title": "DeepSeek：架构",
+    "url": "https://deepseek-harness.github.io/deepseek-harness/reference/",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "来源：[Anthropic：运行机制](https://code.claude.com/docs/en/how-claude-code-works)、[用户给定第三方入口](https://ccb.agent-aura.top/docs/introduction/what-is-claude-code)、[LangChain：Code](https://docs.langchain.com/oss/deepagents/code/overview)、[SDK 概览](https://docs.langchain.com/oss/python/deepagents/overview)、[DeepSeek：架构](https://deepseek-harness.github.io/deepseek-harness/reference/)、[安全说明](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md)。以上本轮于 2026-09-07 读取；页面发布日期未核实。"
+  },
+  {
+    "title": "安全说明",
+    "url": "https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "来源：[Anthropic：运行机制](https://code.claude.com/docs/en/how-claude-code-works)、[用户给定第三方入口](https://ccb.agent-aura.top/docs/introduction/what-is-claude-code)、[LangChain：Code](https://docs.langchain.com/oss/deepagents/code/overview)、[SDK 概览](https://docs.langchain.com/oss/python/deepagents/overview)、[DeepSeek：架构](https://deepseek-harness.github.io/deepseek-harness/reference/)、[安全说明](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md)。以上本轮于 2026-09-07 读取；页面发布日期未核实。"
+  },
+  {
+    "title": "官方 main 依赖",
+    "url": "https://raw.githubusercontent.com/langchain-ai/deepagents/main/libs/deepagents/pyproject.toml",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "Deep Agents main 的版本字段仍为 0.7.13，但 core 最低依赖本轮显示为 1.6.2，上一轮为 1.6.1。PyPI 可见发布记录仍为 0.7.13。main 和已发布 wheel 的内容不能据版本号视为相同；实验必须记录发布包哈希、实际解析依赖与对应源码。[官方 main 依赖](https://raw.githubusercontent.com/langchain-ai/deepagents/main/libs/deepagents/pyproject.toml)、[PyPI](https://pypi.org/project/deepagents/)"
+  },
+  {
+    "title": "PyPI",
+    "url": "https://pypi.org/project/deepagents/",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "Deep Agents main 的版本字段仍为 0.7.13，但 core 最低依赖本轮显示为 1.6.2，上一轮为 1.6.1。PyPI 可见发布记录仍为 0.7.13。main 和已发布 wheel 的内容不能据版本号视为相同；实验必须记录发布包哈希、实际解析依赖与对应源码。[官方 main 依赖](https://raw.githubusercontent.com/langchain-ai/deepagents/main/libs/deepagents/pyproject.toml)、[PyPI](https://pypi.org/project/deepagents/)"
+  },
+  {
+    "title": "本地执行器",
+    "url": "/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "当前普通对话组装仍将全部历史转换为 role/content，工具 UI 恢复不等于模型上下文恢复；研究仍直接在 HTTP 流生成器内执行。建议把最小持久 worker 提前到 v0.3 的试用收口阶段，让关闭页面只影响订阅；v0.4 再做完整上下文压缩、预算分配与执行器优化。[本地执行器](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py)、[流接口](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py)"
+  },
+  {
+    "title": "流接口",
+    "url": "/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "当前普通对话组装仍将全部历史转换为 role/content，工具 UI 恢复不等于模型上下文恢复；研究仍直接在 HTTP 流生成器内执行。建议把最小持久 worker 提前到 v0.3 的试用收口阶段，让关闭页面只影响订阅；v0.4 再做完整上下文压缩、预算分配与执行器优化。[本地执行器](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/agent/executor.py)、[流接口](/Users/wyf/workspace/aicoding/guanxin-v2/backend/app/api/aisdk.py)"
+  },
+  {
+    "title": "LangChain：Backends",
+    "url": "https://docs.langchain.com/oss/python/deepagents/backends",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "来源：[LangChain：Backends](https://docs.langchain.com/oss/python/deepagents/backends)、[工具与权限](https://docs.langchain.com/oss/python/deepagents/overview)、[事件流](https://docs.langchain.com/oss/python/deepagents/event-streaming)，本轮复核于 2026-09-07。文件权限不等于沙箱隔离，检查点也不保证外部事务可回滚。"
+  },
+  {
+    "title": "工具与权限",
+    "url": "https://docs.langchain.com/oss/python/deepagents/overview",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "来源：[Anthropic：运行机制](https://code.claude.com/docs/en/how-claude-code-works)、[用户给定第三方入口](https://ccb.agent-aura.top/docs/introduction/what-is-claude-code)、[LangChain：Code](https://docs.langchain.com/oss/deepagents/code/overview)、[SDK 概览](https://docs.langchain.com/oss/python/deepagents/overview)、[DeepSeek：架构](https://deepseek-harness.github.io/deepseek-harness/reference/)、[安全说明](https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/SAFETY.md)。以上本轮于 2026-09-07 读取；页面发布日期未核实。"
+  },
+  {
+    "title": "事件流",
+    "url": "https://docs.langchain.com/oss/python/deepagents/event-streaming",
+    "access_date": "2026-09-07",
+    "publication_date": "未核实页面更新时间",
+    "evidence_scope": "本轮复核正文",
+    "claim": "来源：[LangChain：Backends](https://docs.langchain.com/oss/python/deepagents/backends)、[工具与权限](https://docs.langchain.com/oss/python/deepagents/overview)、[事件流](https://docs.langchain.com/oss/python/deepagents/event-streaming)，本轮复核于 2026-09-07。文件权限不等于沙箱隔离，检查点也不保证外部事务可回滚。"
+  }
+]

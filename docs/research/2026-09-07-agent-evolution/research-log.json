@@ -1,0 +1,14 @@
+{
+  "date": "2026-09-07",
+  "scope": "Refresh existing September 4 evolution research against current repository and consequential official sources; no implementation or runtime benchmarking.",
+  "baseline": "617891827ea8153b2a2ac39fab4c4fb388ad9ea7",
+  "planning": "update_plan unavailable; scope and sequential discovery, synthesis, verification steps tracked in session store and commentary. All steps complete.",
+  "retrieval": [
+    {"wave": 1, "sources": "User's three URLs and Anthropic official execution documentation", "native_refs": ["turn22view0", "turn22view1", "turn22view2", "turn22view3"]},
+    {"wave": 2, "sources": "Deep Agents SDK overview, backends, event streaming, main pyproject; DeepSeek SAFETY", "native_refs": ["turn23view0", "turn23view1", "turn23view2", "turn23view3", "turn23view4"]},
+    {"wave": 3, "sources": "Spot-check main dependency change, experimental safety status, PyPI release distinction", "native_refs": ["turn24view0", "turn24view1", "turn24view2"]}
+  ],
+  "reconciliation": "Main still labels version 0.7.13 while core minimum changed from prior 1.6.1 to 1.6.2. Do not equate repository main with published wheel. Third-party Claude UI description superseded by official documentation.",
+  "stop_reason": "Architecture recommendations sufficiently supported; remaining adoption, cost, quality and recovery questions require fixed-version experiments and user task samples, not additional broad retrieval.",
+  "limitations": "Targeted refresh only. Historical appendix retains September 4 access dates and evidence. No candidate installation, application tests, or performance comparison."
+}
