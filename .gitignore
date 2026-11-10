@@ -87,3 +87,14 @@ Thumbs.db
 # ===== 构建产物 =====
 backend/dist/
 backend/.pytest_cache/
+
+# ===== 临时产物 =====
+# tmp/ 是 PDF 渲染等一次性脚本的中间目录，不属于交付物
+tmp/
+# Playwright 运行产物；output/pdf/ 下的研究报告是交付物，仍保留跟踪
+output/playwright/
+
+# ===== 备份文件 =====
+# AGENTS.md 约定原始文件修改前备份为 file.bak.YYYYMMDD
+*.bak
+*.bak.*
