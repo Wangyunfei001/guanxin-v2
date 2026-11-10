@@ -19,6 +19,7 @@ from app.core.checkpoints import close_checkpointer, initialize_checkpointer
 from app.core.deps import init_preset_users
 from app.core.middleware import RequestContextMiddleware
 from app.core.responses import success
+from app.core.secret import ensure_secret_key
 from app.skills.registry import get_skill_registry
 
 # 日志配置
@@ -33,6 +34,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """应用生命周期管理。"""
     logger.info("=== 观心 v2 启动中 ===")
+
+    # 0. 校验签名密钥策略；不满足要求时直接拒绝启动
+    ensure_secret_key()
 
     # 1. 初始化预设用户
     logger.info("Initializing preset users...")

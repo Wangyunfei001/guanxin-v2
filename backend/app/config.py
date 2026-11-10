@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     app_port: int = 8000
 
     # === 安全配置 ===
-    secret_key: str = "guanxin-v2-dev-secret-key-change-in-production"
+    # 留空时由 app.core.secret 自动生成随机密钥并持久化到 <数据目录>/.secret_key。
+    # 不要在此处填写任何会随仓库分发的固定值。
+    secret_key: str = ""
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 

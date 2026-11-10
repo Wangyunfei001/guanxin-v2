@@ -7,6 +7,7 @@ import bcrypt
 from jose import JWTError, jwt
 
 from app.config import settings
+from app.core.secret import resolve_secret_key
 
 # bcrypt 算法只处理前 72 字节（与 passlib 旧行为一致，超出部分截断）
 BCRYPT_MAX_BYTES = 72
@@ -48,7 +49,7 @@ def create_access_token(
     to_encode.update({"exp": expire})
     return jwt.encode(
         to_encode,
-        settings.secret_key,
+        resolve_secret_key(),
         algorithm=settings.jwt_algorithm,
     )
 
@@ -65,7 +66,7 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     try:
         payload = jwt.decode(
             token,
-            settings.secret_key,
+            resolve_secret_key(),
             algorithms=[settings.jwt_algorithm],
         )
         return payload

@@ -92,10 +92,13 @@ def resolve_secret_key() -> str:
 2. 否则读 `data/.secret_key`（`<data_dir>/.secret_key`，权限 0600）
 3. 仍无 → `secrets.token_urlsafe(48)` 生成，写入该文件（原子写：`tmp` + `os.replace`）
 
-**启动校验**（`app/main.py` lifespan）：
+**内置默认值在任何环境都不会被真正用于签名**——它一律被当作「未配置」处理。development / test 只是不因此 fail-fast，实际签名密钥仍是随机生成的那一把。
 
-- `settings.app_env` ∈ {`development`, `test`} → 允许使用默认值，只打一条 WARNING
-- 否则若解析出的密钥 == 默认值 → **抛异常拒绝启动**，错误信息不含密钥本身
+**启动校验**（`app/main.py` lifespan 调用 `ensure_secret_key()`）：
+
+- `settings.app_env` ∈ {`development`, `test`} → 允许继续启动，只打一条 WARNING
+- 否则若显式配置为内置默认值 → **抛异常拒绝启动**，错误信息不含密钥本身
+- 否则若显式配置的密钥短于 32 字符 → **抛异常拒绝启动**
 
 `.env.example` 的 `SECRET_KEY=` 留空，注释说明：留空则自动生成并持久化到 `data/.secret_key`。
 
