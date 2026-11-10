@@ -14,7 +14,7 @@ export const knowledgeApi = {
     const formData = new FormData()
     formData.append("file", file)
     if (title) formData.append("title", title)
-    return client.post("/knowledge/documents/upload", formData, {
+    return client.post<Document>("/knowledge/documents/upload", formData, {
       headers: { "Content-Type": "multipart/form-data" },
       timeout: 60000,
     })
@@ -24,27 +24,27 @@ export const knowledgeApi = {
    * List all documents.
    */
   listDocuments(): Promise<ApiResponse<Document[]>> {
-    return client.get("/knowledge/documents")
+    return client.get<Document[]>("/knowledge/documents")
   },
 
   /**
    * Get a single document (includes chunks for preview).
    */
   getDocument(docId: string): Promise<ApiResponse<DocumentDetail>> {
-    return client.get(`/knowledge/documents/${docId}`)
+    return client.get<DocumentDetail>(`/knowledge/documents/${docId}`)
   },
 
   /**
    * Delete a document.
    */
   deleteDocument(docId: string): Promise<ApiResponse<{ deleted: boolean }>> {
-    return client.delete(`/knowledge/documents/${docId}`)
+    return client.delete<{ deleted: boolean }>(`/knowledge/documents/${docId}`)
   },
 
   /**
    * Retrieve relevant chunks for a query.
    */
   retrieve(query: string, topK = 5): Promise<ApiResponse<RetrievalResult[]>> {
-    return client.post("/knowledge/retrieve", { query, top_k: topK })
+    return client.post<RetrievalResult[]>("/knowledge/retrieve", { query, top_k: topK })
   },
 }

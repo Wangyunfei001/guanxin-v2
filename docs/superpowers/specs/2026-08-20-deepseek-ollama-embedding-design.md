@@ -6,6 +6,9 @@ status: draft
 parent: knowledge
 ---
 
+> **规格状态**：本文是设计决策记录，**不是权威契约**。现行实现的权威契约在
+> [`docs/specs/`](../../specs/)（spec-graph）；改动行为时以那里为准。
+
 # DeepSeek Agent 与 Ollama Embedding 接入设计
 
 > 2026-11 备注：文中模型名（`deepseek-chat`）已随供应商更新为 `deepseek-v4-pro` / `deepseek-v4-flash`；显式 provider、不静默回退随机向量的决策仍有效。

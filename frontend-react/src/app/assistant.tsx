@@ -51,7 +51,7 @@ function ConversationPane({
   onSelect,
 }: ConversationPaneProps) {
   return (
-    <aside className="flex h-full w-[264px] shrink-0 flex-col border-r bg-background lg:bg-muted/30">
+    <aside className="flex h-full w-secondary shrink-0 flex-col border-r bg-background lg:bg-muted/30">
       <div className="flex h-16 items-center justify-between border-b px-4">
         <div>
           <p className="text-sm font-semibold">会话流</p>
@@ -267,7 +267,7 @@ export default function Assistant() {
       <AnimatePresence>
         {drawerOpen && (
           <motion.div
-            className="fixed inset-0 z-40 flex lg:hidden"
+            className="fixed inset-0 z-overlay flex lg:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -300,7 +300,7 @@ export default function Assistant() {
 
       <section className="relative min-w-0 flex-1 overflow-hidden bg-background">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-full bg-[radial-gradient(circle_at_50%_-30%,hsl(var(--primary)/0.11),transparent_66%)]" />
-        <div className="absolute left-3 top-3 z-20 flex gap-1.5 lg:hidden">
+        <div className="absolute left-3 top-3 z-sticky flex gap-1.5 lg:hidden">
           <Button
             size="icon"
             variant="outline"
@@ -311,7 +311,7 @@ export default function Assistant() {
             <List size={17} />
           </Button>
         </div>
-        <div className="absolute right-3 top-3 z-20">
+        <div className="absolute right-3 top-3 z-sticky">
           <Button
             size="sm"
             variant="ghost"

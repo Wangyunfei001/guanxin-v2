@@ -10,7 +10,7 @@ export const mcpApi = {
    * List all registered MCP servers.
    */
   listServers(): Promise<ApiResponse<MCPServer[]>> {
-    return client.get("/mcp/servers")
+    return client.get<MCPServer[]>("/mcp/servers")
   },
 
   /**
@@ -23,14 +23,14 @@ export const mcpApi = {
     env?: Record<string, string>
     description?: string
   }): Promise<ApiResponse<MCPServer>> {
-    return client.post("/mcp/servers", data)
+    return client.post<MCPServer>("/mcp/servers", data)
   },
 
   /**
    * Unregister/delete an MCP server.
    */
   unregisterServer(name: string): Promise<ApiResponse<{ deleted: boolean }>> {
-    return client.delete(`/mcp/servers/${name}`)
+    return client.delete<{ deleted: boolean }>(`/mcp/servers/${name}`)
   },
 
   /**
@@ -38,7 +38,7 @@ export const mcpApi = {
    * May take up to 30s for server startup.
    */
   connectServer(serverName: string): Promise<ApiResponse<MCPConnection>> {
-    return client.post(
+    return client.post<MCPConnection>(
       "/mcp/connect",
       { server_name: serverName },
       { timeout: 30000 },
@@ -49,7 +49,7 @@ export const mcpApi = {
    * List active MCP connections.
    */
   listConnections(): Promise<ApiResponse<MCPConnection[]>> {
-    return client.get("/mcp/connections")
+    return client.get<MCPConnection[]>("/mcp/connections")
   },
 
   updateToolPolicy(
@@ -57,7 +57,7 @@ export const mcpApi = {
     toolName: string,
     policy: Pick<MCPToolPolicy, "enabled" | "effect" | "approval_required">,
   ): Promise<ApiResponse<MCPToolPolicy>> {
-    return client.put(
+    return client.put<MCPToolPolicy>(
       `/mcp/servers/${encodeURIComponent(serverName)}/tools/${encodeURIComponent(toolName)}/policy`,
       policy,
     )
@@ -71,7 +71,7 @@ export const mcpApi = {
     toolName: string,
     arguments_: Record<string, any>,
   ): Promise<ApiResponse<any>> {
-    return client.post(
+    return client.post<any>(
       "/mcp/call-tool",
       {
         server_name: serverName,

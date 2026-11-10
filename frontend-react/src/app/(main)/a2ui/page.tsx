@@ -167,13 +167,27 @@ export default function A2UIPreviewPage() {
     }
   }
 
-  const applyJson = () => {
+  const applyJson = async () => {
+    let parsed: unknown
     try {
-      const parsed = JSON.parse(schemaJson)
-      setCurrentSchema(parsed)
-      toast.success("已应用")
+      parsed = JSON.parse(schemaJson)
     } catch {
       toast.error("JSON 格式错误")
+      return
+    }
+    // The backend already validates the schema (POST /a2ui/preview). Applying
+    // it without that check means a malformed schema silently falls back to
+    // InfoCard while the user is told "已应用".
+    try {
+      const response = await a2uiApi.previewSchema(parsed as A2UISchema)
+      if (response.code !== 0) {
+        toast.error(response.message || "Schema 不合法")
+        return
+      }
+      setCurrentSchema(parsed as A2UISchema)
+      toast.success("已应用")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Schema 校验失败")
     }
   }
 

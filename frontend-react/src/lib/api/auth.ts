@@ -14,13 +14,13 @@ export const authApi = {
     password: string,
     tenant_id = "",
   ): Promise<ApiResponse<LoginResult>> {
-    return client.post("/auth/login", { username, password, tenant_id })
+    return client.post<LoginResult>("/auth/login", { username, password, tenant_id })
   },
 
   /**
    * Get current user info.
    */
   getMe(): Promise<ApiResponse<User>> {
-    return client.get("/auth/me")
+    return client.get<User>("/auth/me")
   },
 }

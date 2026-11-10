@@ -60,7 +60,7 @@ export default function LoginPage() {
 
   return (
     <main className="relative grid min-h-[100dvh] overflow-hidden lg:grid-cols-[minmax(0,1.12fr)_minmax(440px,0.88fr)]">
-      <div className="absolute right-4 top-4 z-20 lg:right-6 lg:top-6">
+      <div className="absolute right-4 top-4 z-sticky lg:right-6 lg:top-6">
         <ThemeToggle />
       </div>
 

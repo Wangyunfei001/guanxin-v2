@@ -1,6 +1,8 @@
 "use client"
 
 import { motion, useReducedMotion } from "motion/react"
+
+import { motionTokens } from "@/lib/design-tokens"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 import { ContextPanel } from "./context-panel"
@@ -21,7 +23,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             key={pathname}
             initial={reduceMotion ? false : { opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: reduceMotion ? 0 : motionTokens.component, ease: motionTokens.ease }}
             className="min-w-0 flex-1 overflow-auto"
           >
             {children}

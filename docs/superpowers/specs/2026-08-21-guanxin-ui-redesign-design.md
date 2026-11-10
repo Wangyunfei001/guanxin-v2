@@ -6,6 +6,9 @@ status: draft
 parent: frontend-app
 ---
 
+> **规格状态**：本文是设计决策记录，**不是权威契约**。现行实现的权威契约在
+> [`docs/specs/`](../../specs/)（spec-graph）；改动行为时以那里为准。
+
 # 观心 v2「观心识流」系统 UI 重设计规格
 
 > 2026-11 备注：文中 assistant-ui runtime、AI SDK UIMessage data part 等对话层表述已由 `spec-langchain-native` 取代；视觉语言、页面结构与交互锁定规则仍按本文执行。

@@ -2,6 +2,8 @@
 
 import { CaretDoubleLeft, CaretDoubleRight, List, X } from "@phosphor-icons/react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+
+import { layoutTokens, motionTokens } from "@/lib/design-tokens"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { BrandMark } from "@/components/brand/brand-mark"
@@ -27,8 +29,8 @@ function RailContent({ mobile = false }: { mobile?: boolean }) {
   return (
     <motion.aside
       initial={false}
-      animate={{ width: expanded ? 224 : 72 }}
-      transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+      animate={{ width: expanded ? 224 : layoutTokens.railWidth }}
+      transition={reduceMotion ? { duration: 0 } : { duration: motionTokens.component, ease: motionTokens.ease }}
       className={cn(
         "flex h-full shrink-0 flex-col border-r border-white/8 bg-[#0d1311] text-[#edf4f1]",
         mobile && "w-56 shadow-float",
@@ -132,7 +134,7 @@ export function PrimaryRail() {
       <AnimatePresence>
         {mobileNavigationOpen && (
           <motion.div
-            className="fixed inset-0 z-40 flex md:hidden"
+            className="fixed inset-0 z-overlay flex md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -141,7 +143,7 @@ export function PrimaryRail() {
               initial={{ x: -32 }}
               animate={{ x: 0 }}
               exit={{ x: -32 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: motionTokens.component, ease: motionTokens.ease }}
             >
               <RailContent mobile />
             </motion.div>
@@ -156,7 +158,7 @@ export function PrimaryRail() {
       <Button
         variant="ghost"
         size="icon"
-        className="fixed left-2 top-2 z-30 size-10 md:hidden"
+        className="fixed left-2 top-2 z-navigation size-10 md:hidden"
         onClick={() => setMobileNavigationOpen(true)}
         aria-label="打开导航"
       >

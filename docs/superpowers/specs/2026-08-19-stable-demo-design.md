@@ -6,6 +6,9 @@ status: draft
 parent: platform-core
 ---
 
+> **规格状态**：本文是设计决策记录，**不是权威契约**。现行实现的权威契约在
+> [`docs/specs/`](../../specs/)（spec-graph）；改动行为时以那里为准。
+
 # 观心 v2 稳定演示版设计规格
 
 > 2026-11 备注：本文的聊天协议部分（AI SDK、`/api/agent/chat/aisdk`、assistant-ui 渲染）已由 `spec-langchain-native` 取代；持久化、身份与 RBAC 的决策仍有效，第 7 行的「本轮不包含」仍是非目标。

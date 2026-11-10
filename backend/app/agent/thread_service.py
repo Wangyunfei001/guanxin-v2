@@ -17,6 +17,17 @@ from app.workflows.presentation import pending_workflow_part, workflow_public_da
 logger = logging.getLogger(__name__)
 _tasks: dict[str, asyncio.Task] = {}
 
+# 模型在纯复述统计数字时用这个前缀标记，正文不会展示给用户。它是模型与
+# 界面之间的协议标记，不应进入历史与导出。
+DASHBOARD_MARKER = "[看板]"
+
+
+def strip_dashboard_marker(content: str) -> str:
+    """剥离正文开头的看板标记。"""
+    if content.startswith(DASHBOARD_MARKER):
+        return content[len(DASHBOARD_MARKER):].lstrip()
+    return content
+
 
 def historical_messages(conversation) -> list[dict]:
     return [{"id": m.message_id, "type": "human" if m.role == "user" else "ai",
@@ -180,5 +191,5 @@ async def _persist_transcript(cid: str, user: User) -> None:
         if isinstance(content, list):
             content = "\n".join(str(b.get("text", "")) for b in content if isinstance(b, dict) and b.get("type") == "text")
         store.add_message(cid, ConversationMessage(message_id=message["id"], role="assistant",
-            content=content, tool_calls=message.get("tool_calls", [])))
+            content=strip_dashboard_marker(content), tool_calls=message.get("tool_calls", [])))
         known.add(message["id"])

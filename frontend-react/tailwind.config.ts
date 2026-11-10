@@ -1,5 +1,7 @@
 import type { Config } from "tailwindcss"
 
+import { layoutTokens, zIndexTokens } from "./src/lib/design-tokens"
+
 const config: Config = {
   darkMode: ["class"],
   content: [
@@ -16,6 +18,22 @@ const config: Config = {
       },
     },
     extend: {
+      // 布局与层级令牌集中在 src/lib/design-tokens.ts，这里是它们唯一的出口。
+      width: {
+        rail: `${layoutTokens.railWidth}px`,
+        secondary: `${layoutTokens.secondaryWidth}px`,
+        inspector: `${layoutTokens.inspectorWidth}px`,
+      },
+      height: {
+        toolbar: `${layoutTokens.toolbarHeight}px`,
+      },
+      zIndex: {
+        sticky: String(zIndexTokens.sticky),
+        navigation: String(zIndexTokens.navigation),
+        overlay: String(zIndexTokens.overlay),
+        dialog: String(zIndexTokens.dialog),
+        toast: String(zIndexTokens.toast),
+      },
       fontFamily: {
         sans: ["var(--font-geist-sans)", "PingFang SC", "Microsoft YaHei", "sans-serif"],
         mono: ["var(--font-geist-mono)", "SFMono-Regular", "Consolas", "monospace"],
