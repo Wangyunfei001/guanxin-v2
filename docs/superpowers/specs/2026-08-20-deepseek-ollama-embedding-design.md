@@ -1,4 +1,14 @@
+---
+id: spec-deepseek-ollama-embedding
+type: task-spec
+title: DeepSeek Agent 与 Ollama Embedding 接入设计
+status: draft
+parent: knowledge
+---
+
 # DeepSeek Agent 与 Ollama Embedding 接入设计
+
+> 2026-11 备注：文中模型名（`deepseek-chat`）已随供应商更新为 `deepseek-v4-pro` / `deepseek-v4-flash`；显式 provider、不静默回退随机向量的决策仍有效。
 
 ## 1. 目标与边界
 

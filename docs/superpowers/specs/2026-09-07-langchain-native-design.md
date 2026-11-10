@@ -1,4 +1,14 @@
+---
+id: spec-langchain-native
+type: task-spec
+title: 观心 LangChain 原生执行链迁移
+status: draft
+parent: agent-runtime
+---
+
 # 观心 LangChain 原生执行链迁移
+
+> 2026-11 备注：本文已落地，是现行执行内核的决策记录；文末「分期」属于当时的下一步计划，不构成对规格的承诺。
 
 用户已确认：取消 assistant-ui 与 AI SDK，以 LangChain React SDK、Deep Agents、LangGraph 收敛实现，优先减少自研 Agent 代码。
 

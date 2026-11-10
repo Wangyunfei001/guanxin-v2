@@ -1,4 +1,14 @@
+---
+id: spec-real-weather-mcp
+type: task-spec
+title: 真实天气 MCP 设计规格
+status: draft
+parent: mcp
+---
+
 # 真实天气 MCP 设计规格
+
+> 2026-11 备注：文中「不改变 Supervisor」的前提已不存在（Supervisor 已移除），Tool Catalog 仍沿用；数据源、时区、工具契约的决策仍有效。
 
 ## 目标
 

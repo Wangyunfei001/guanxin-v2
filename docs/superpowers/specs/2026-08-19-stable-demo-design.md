@@ -1,4 +1,14 @@
+---
+id: spec-stable-demo
+type: task-spec
+title: 稳定演示版设计规格
+status: draft
+parent: platform-core
+---
+
 # 观心 v2 稳定演示版设计规格
+
+> 2026-11 备注：本文的聊天协议部分（AI SDK、`/api/agent/chat/aisdk`、assistant-ui 渲染）已由 `spec-langchain-native` 取代；持久化、身份与 RBAC 的决策仍有效，第 7 行的「本轮不包含」仍是非目标。
 
 ## 1. 目标与边界
 

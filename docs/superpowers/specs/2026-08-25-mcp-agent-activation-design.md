@@ -1,4 +1,14 @@
+---
+id: spec-mcp-agent-activation
+type: task-spec
+title: MCP Agent 启用与工具查询修复规格
+status: draft
+parent: mcp
+---
+
 # MCP Agent 启用与工具查询修复规格
+
+> 2026-11 备注：文中「意图分类器输出进正文」的诱因已随 Supervisor 移除而消失（现行只用正则判定写意图）；「连接成功后幂等启用租户 Agent」的决策仍有效并已落地。
 
 > 日期：2026-08-25
 >

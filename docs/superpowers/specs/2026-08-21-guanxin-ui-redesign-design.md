@@ -1,4 +1,14 @@
+---
+id: spec-ui-redesign
+type: task-spec
+title: 观心识流系统 UI 重设计规格
+status: draft
+parent: frontend-app
+---
+
 # 观心 v2「观心识流」系统 UI 重设计规格
+
+> 2026-11 备注：文中 assistant-ui runtime、AI SDK UIMessage data part 等对话层表述已由 `spec-langchain-native` 取代；视觉语言、页面结构与交互锁定规则仍按本文执行。
 
 > 日期：2026-08-21
 >

@@ -1,4 +1,19 @@
+---
+id: doc-chroma-review
+type: task-spec
+title: ChromaDB 数据库设计架构评审报告
+status: draft
+parent: knowledge
+---
+
 # ChromaDB 数据库设计架构评审报告
+
+## 评审后进展（2026-11 对码核对）
+
+本文正文保留 2026-07-12 的原始评审结论。下列条目已随代码演进闭环，其余条目仍以本文原文为准：
+
+- 已闭环：3.2.1（上传与检索均经 `asyncio.to_thread`）、4.2.1（异常落 `FAILED` 并记 `error_message`）、6.2（显式 provider + 告警 + `fallback` 元数据，Ollama 不再退化为随机向量）、4.2.2（向量删除失败即中止）、4.2.3（按 chunk id 补偿）、4.2.4（文档元数据已迁入 SQLite）、2.2.4（现行架构文档已写作 `tenant-{tenant_id}-kb`）。
+- 仍开放：2.2.1（tenant_id 未校验）、2.2.2（查询无 `where` 二次过滤）、2.2.3（`list_collections` 不区分租户）、3.2.2（CRUD 无操作级锁）、3.2.3（collection 未缓存）、5.3.1 / 5.3.2（距离度量与归一化假设未显式声明）、6.1（`count()` 重复调用）、6.3（函数内 import）、6.4（`delete_collection` 吞所有异常）。
 
 > 评审人：架构师 高见远
 > 评审日期：2026-07-12
