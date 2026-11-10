@@ -13,7 +13,7 @@ from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import tool
 
-from app.agent.llm import _create_llm
+from app.agent.llm import LLMConfigurationError, create_llm
 from app.agent.tool_catalog import build_tool_catalog, runtime_tools
 from app.core.checkpoints import get_checkpointer, initialize_checkpointer
 from app.core.tenant import set_tenant_context
@@ -85,7 +85,11 @@ async def checkpoint_values(conversation_id: str) -> dict:
 async def build_deep_agent(conversation_id: str, user: User, mode: str = "auto", *, model=None):
     set_tenant_context(user.tenant_id, user.user_id, user.role)
     config = get_agent_config_store().get_or_create_default(user.tenant_id)
-    model = model or _create_llm(config.model, config.temperature, config.max_tokens)
+    try:
+        model = model or create_llm(config.model, config.temperature, config.max_tokens)
+    except LLMConfigurationError as exc:
+        # 真实的初始化失败（地址 / 模型名 / 依赖）不能被误报成「没配 API Key」。
+        raise ValueError(str(exc)) from exc
     if model is None:
         raise ValueError("尚未配置可用模型，请先配置 OPENAI_API_KEY。")
     from app.research import ledger

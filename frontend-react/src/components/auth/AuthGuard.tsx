@@ -10,6 +10,7 @@ import { useAuthStore } from "@/lib/stores/auth"
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn)
+  const fetchMe = useAuthStore((s) => s.fetchMe)
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
@@ -21,6 +22,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       redirect("/login")
     }
   }, [hydrated, isLoggedIn])
+
+  useEffect(() => {
+    if (!hydrated || !isLoggedIn) return
+    // Validate the stored token once on mount: an expired session should be
+    // discovered before the user starts a run, not when the first call 401s.
+    void fetchMe()
+  }, [hydrated, isLoggedIn, fetchMe])
 
   if (!hydrated) {
     return (

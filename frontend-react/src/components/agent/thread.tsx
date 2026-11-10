@@ -8,6 +8,7 @@ import { ArrowUp, Stop, DownloadSimple, Paperclip, X } from "@phosphor-icons/rea
 import { Button } from "@/components/ui/button"
 import { useResearchModeStore, type ResearchMode } from "@/lib/stores/research"
 import { selectHasActiveWorkflow, useWorkflowUiStore } from "@/lib/stores/workflow"
+import { handleUnauthorized } from "@/lib/api/errors"
 import type { HistoricalMessage, WorkflowData, ResearchData } from "@/types"
 import { WorkflowDataRenderer } from "./workflow-card"
 import { ResearchDataRenderer } from "./research-card"
@@ -25,11 +26,17 @@ type AgentState = {
 
 async function authorizedFetch(input: RequestInfo | URL, init?: RequestInit) {
   const token = localStorage.getItem("access_token")
-  if (!token) throw new Error("登录状态已失效，请重新登录")
+  if (!token) {
+    handleUnauthorized()
+    throw new Error("登录状态已失效，请重新登录")
+  }
   const headers = new Headers(init?.headers)
   headers.set("Authorization", `Bearer ${token}`)
   const response = await fetch(input, { ...init, headers })
-  if (response.status === 401) throw new Error("登录状态已失效，请重新登录")
+  if (response.status === 401) {
+    handleUnauthorized()
+    throw new Error("登录状态已失效，请重新登录")
+  }
   return response
 }
 
@@ -79,16 +86,32 @@ function NativeThread({ conversationId, history, refresh }: { conversationId: st
     const text = draft.trim()
     if (!text || disabled) return
     setActionError("")
-    setDraft("")
+    const content = attachment ? `${text}\n\n附件 ${attachment.name}：\n${attachment.content}` : text
+    if (content.length > 100_000) {
+      setActionError("消息和附件合计不能超过 100000 字符")
+      return
+    }
     sticky.current = true
-    try {
-      const content = attachment ? `${text}\n\n附件 ${attachment.name}：\n${attachment.content}` : text
-      if (content.length > 100_000) throw new Error("消息和附件合计不能超过 100000 字符")
-      await stream.submit({ messages: [{ type: "human", id: crypto.randomUUID(), content }], research_mode: mode })
+    // The SDK never rejects on a failed dispatch: every failure is routed to
+    // the stream error slot. Restore the draft through onError, otherwise the
+    // typed message is lost on a 409 / 5xx / offline backend.
+    const failedRef = { current: false }
+    await stream.submit(
+      { messages: [{ type: "human", id: crypto.randomUUID(), content }], research_mode: mode },
+      {
+        onError: (error) => {
+          failedRef.current = true
+          setDraft(text)
+          setAttachment(attachment)
+          setActionError(error instanceof Error ? error.message : "发送失败，请重试")
+        },
+      },
+    )
+    // Only clear when the command was actually accepted; a failed dispatch
+    // already restored the draft through onError.
+    if (!failedRef.current) {
+      setDraft("")
       setAttachment(null)
-    } catch (error) {
-      setDraft(text)
-      setActionError(error instanceof Error ? error.message : "发送失败，请重试")
     }
   }
   const cancel = async () => {

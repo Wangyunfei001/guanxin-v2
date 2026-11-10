@@ -45,12 +45,6 @@ def get_user_role() -> Optional[str]:
     return _user_role_ctx.get()
 
 
-def clear_tenant_context() -> None:
-    """清除租户上下文。"""
-    _tenant_id_ctx.set(None)
-    _user_id_ctx.set(None)
-    _user_role_ctx.set(None)
-
 
 def get_kb_collection_name(tenant_id: Optional[str] = None) -> str:
     """根据租户 ID 生成知识库集合名称。

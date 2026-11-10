@@ -20,10 +20,11 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useSkillStore } from "@/lib/stores/skill"
+import { ErrorState } from "@/components/layout/error-state"
 import type { SkillMetadata } from "@/types"
 
 export default function SkillsPage() {
-  const { skills, loading, loadSkills, executeSkill } = useSkillStore()
+  const { skills, loading, error, loadSkills, executeSkill } = useSkillStore()
   const [executeTarget, setExecuteTarget] = React.useState<SkillMetadata | null>(null)
   const [paramValues, setParamValues] = React.useState<Record<string, any>>({})
   const [resultText, setResultText] = React.useState("")
@@ -94,7 +95,9 @@ export default function SkillsPage() {
       />
 
       <Card className="overflow-hidden">
-        {skills.length === 0 && !loading ? (
+        {error ? (
+          <ErrorState message={error} onRetry={() => void loadSkills()} />
+        ) : skills.length === 0 && !loading ? (
           <EmptyState
             icon={Lightning}
             title="暂无可用 Skill"

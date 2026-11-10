@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.agent.llm import _create_llm
+from app.agent.llm import create_llm
 from app.workflows.intent import _regex_classify, looks_like_question
 from app.models.agent import AgentConfig
 from app.workflows.catalog import WorkflowToolError, normalize_arguments
@@ -144,7 +144,7 @@ async def create_workflow_plan(
         )
     if not catalog:
         raise WorkflowPlannerError("当前 Agent 没有可用于工作流的工具")
-    llm = _create_llm(config.model, config.temperature, config.max_tokens)
+    llm = create_llm(config.model, config.temperature, config.max_tokens)
     if llm is None:
         raise WorkflowPlannerError("未配置可用的大模型，无法生成工作流计划")
     # DeepSeek's OpenAI-compatible endpoint currently rejects the JSON Schema

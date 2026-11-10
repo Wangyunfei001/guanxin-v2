@@ -58,7 +58,7 @@ async def test_native_graph_writes_artifact_and_restores_tool_order(test_client,
         AIMessage(content="报告已保存。"),
         AIMessage(content="我记得上一份报告。"),
     ])
-    monkeypatch.setattr(deep_agent, "_create_llm", lambda *a, **kw: model)
+    monkeypatch.setattr(deep_agent, "create_llm", lambda *a, **kw: model)
     cid = new_thread(test_client, admin_headers)
     mid = str(uuid.uuid4())
     response = submit(test_client, admin_headers, cid, "整理报告", mid)
@@ -104,7 +104,7 @@ def test_native_owner_and_input_are_server_controlled(test_client, admin_headers
 def test_native_disallowed_delegation_fails_closed(test_client, admin_headers, monkeypatch):
     model = ScriptedModel(responses=[AIMessage(content="", tool_calls=[{
         "name": "task", "args": {"description": "escape", "subagent_type": "general-purpose"}, "id": "blocked"}])])
-    monkeypatch.setattr(deep_agent, "_create_llm", lambda *a, **kw: model)
+    monkeypatch.setattr(deep_agent, "create_llm", lambda *a, **kw: model)
     cid = new_thread(test_client, admin_headers)
     submit(test_client, admin_headers, cid, "test blocked delegation")
     state = settled(test_client, admin_headers, cid)

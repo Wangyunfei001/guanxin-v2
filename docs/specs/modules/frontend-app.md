@@ -25,9 +25,17 @@ Next.js 15 App Router 单页工作台：登录、会话与流式对话、五个�
 
 **路由**：`/login` 与 `(auth)` 布局；`(main)` 下 `/assistant`（会话工作台）、`/knowledge`、`/skills`、`/agent`（Agent 配置）、`/mcp`、`/a2ui`；`/chat` 永久重定向到 `/assistant`。
 
-**数据访问**：`src/lib/api/*` 用 axios 拦截器统一附加 `Authorization: Bearer`，响应解包成 `{code, message, data}`，401 清理 token 并跳登录；状态放在 zustand store（auth / agent / knowledge / mcp / skill / workflow / research / a2ui / layout）。
+**数据访问**：`src/lib/api/*` 用 axios 拦截器统一附加 `Authorization: Bearer`，响应解包成 `{code, message, data}`；状态放在 zustand store（auth / agent / knowledge / mcp / skill / workflow / research / a2ui / layout）。
 
-**线程渲染**：`AgentThread` 用 `useStream` 订阅线程，按事件渲染文本、工具调用、虚拟文件下载、工作流卡片（表单 / 审批 / 取消 / uncertain 处置）、研究卡片（预算余量、主张—原文—来源）与 `query_users` 统计看板；运行中禁用输入，存在活动工作流时同样禁用。
+**错误态**：每个 store 带 `error: string | null`。**空态只在「确实没有数据」时出现**——`data.length === 0 && !error && !loading` 才渲染空态，否则渲染错误态与重试入口（`components/layout/error-state.tsx`）。网络故障不得被渲染成「知识库还是空的」这类谎报。App Router 树里必须有 `error.tsx` 与 `global-error.tsx`，一次坏响应不应摧毁整个工作台。
+
+**登录失效**：`handleUnauthorized()` 是唯一的 401 出口，axios 拦截器与 SSE/agent 通道共用它（清 token + 跳登录页）。登录页自身返回 401 时不再跳转，避免刷新循环。`AuthGuard` 挂载时调用一次 `fetchMe()` 校验本地令牌，使过期会话在用户发起运行之前被发现。
+
+**发送失败不丢内容**：`useStream().submit()` 不会 reject——失败被转成 stream 的 error slot。因此草稿清空必须由「命令确实被接受」驱动，失败时通过 SDK 的 `onError` 恢复草稿与附件。
+
+**主题与设计令牌**：深色优先、可切换；主色为观心青绿（`--primary` HSL 变量，深浅两套），布局与动效令牌集中在 `src/lib/design-tokens.ts`，组件基于 shadcn/Radix。
+
+**线程渲染**：`AgentThread` 用 `useStream` 订阅线程，按事件渲染文本、工具调用、虚拟文件下载、工作流卡片（表单 / 审批 / 取消 / uncertain 处置）、研究卡片（预算余量、主张—原文—来源）与 `query_users` 统计看板；运行中禁用输入，存在活动工作流时同样禁用。切换会话的响应带请求序号保护——只有最后一次请求的结果会被应用，先发后到的旧响应不得覆盖新选择。
 
 **主题与设计令牌**：深色优先、可切换；主色为观心青绿（`--primary` HSL 变量，深浅两套），布局与动效令牌集中在 `src/lib/design-tokens.ts`，组件基于 shadcn/Radix。
 

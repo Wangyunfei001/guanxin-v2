@@ -99,7 +99,7 @@ class TestAgentPathHasNoBypass:
         from tests.test_langchain import ScriptedModel, new_thread, settled, submit
 
         model = ScriptedModel(responses=[AIMessage(content="删除用户需要在管理页提交审批。")])
-        monkeypatch.setattr(deep_agent, "_create_llm", lambda *a, **kw: model)
+        monkeypatch.setattr(deep_agent, "create_llm", lambda *a, **kw: model)
 
         cid = new_thread(test_client, admin_headers)
         submit(test_client, admin_headers, cid, "如何删除用户")
@@ -121,7 +121,7 @@ class TestAgentPathHasNoBypass:
         from tests.test_langchain import ScriptedModel, new_thread, settled, submit
 
         model = ScriptedModel(responses=[AIMessage(content="删除用户需要在管理页提交审批。")])
-        monkeypatch.setattr(deep_agent, "_create_llm", lambda *a, **kw: model)
+        monkeypatch.setattr(deep_agent, "create_llm", lambda *a, **kw: model)
 
         cid = new_thread(test_client, admin_headers)
         submit(test_client, admin_headers, cid, "如何删除用户")

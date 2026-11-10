@@ -61,5 +61,5 @@ class BrowserModel(BaseChatModel):
 from app.agent import deep_agent
 from app.main import create_app
 
-deep_agent._create_llm = lambda *a, **kw: BrowserModel()
+deep_agent.create_llm = lambda *a, **kw: BrowserModel()
 app = create_app()

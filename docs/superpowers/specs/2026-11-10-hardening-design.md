@@ -304,7 +304,7 @@ v3 协议**每个模型 chunk 发一个 `content-delta`**（已核对安装的 `
 
 ### B9 · 发送失败时恢复草稿与附件
 
-**问题**：`frontend-react/src/components/agent/thread.tsx:78-92` 先 `setDraft("")` 再 `await stream.submit(...)`，catch 里 `setDraft(text)` 恢复。
+**问题**：`frontend-react/src/components/agent/thread.tsx` 先 `setDraft("")` 再 `await stream.submit(...)`，catch 里 `setDraft(text)` 恢复。
 
 但 `useStream().submit()` **不 reject** —— 已读安装的 `@langchain/langgraph-sdk@1.10.2` 源码 `dist/stream/submit-coordinator.js`：
 
@@ -320,20 +320,23 @@ v3 协议**每个模型 chunk 发一个 `content-delta`**（已核对安装的 `
 **方案**：
 
 ```js
+const failedRef = { current: false }
 await stream.submit(payload, {
   onError: (error) => {
+    failedRef.current = true
     setDraft(text)
     setAttachment(attachment)
-    setActionError(error instanceof Error ? error.message : "发送失败，请重试")
+    setActionError(...)
   },
 })
+if (!failedRef.current) { setDraft(""); setAttachment(null) }
 ```
 
-SDK 的 `onError` 在 dispatch-failure 与 terminal-failure 两条路径都会调用。草稿清空时机改为「命令被接受后」。
+SDK 的 `onError` 在 dispatch-failure 与 terminal-failure 两条路径都会调用。**`failedRef` 是必要的**：SDK 正常 resolve 后无条件清空草稿，会把 `onError` 刚恢复的内容又抹掉——只有「命令确实被接受」才清空。
 
 **改动点**：`frontend-react/src/components/agent/thread.tsx`
 
-**验证**：抽 `restoreDraftOnError` 纯函数 + vitest 用例；Playwright 断言失败后输入框内容仍在。
+**验证**：e2e 断言失败后输入框内容仍在；W5 补纯函数用例。
 
 ### B10 · 统一前端错误态 + 补 error boundary
 
@@ -351,13 +354,15 @@ App Router 树里没有任何 `error.tsx` / `global-error.tsx` / `not-found.tsx`
 
 **方案**：
 
-1. 每个 store 增加 `error: string | null`，成功时清空、失败时写入
-2. 统一空态判定规则：**`data.length === 0 && !error && !loading` 才显示空态**；有 error 则显示错误态 + 重试按钮
+1. 每个 store 增加 `error: string | null`，成功时清空、失败时写入（`src/lib/api/errors.ts` 提供统一的 `describeError`）
+2. 统一空态判定规则：**`data.length === 0 && !error && !loading` 才显示空态**；有 error 则显示错误态 + 重试按钮（新增 `components/layout/error-state.tsx`）
 3. 新增 `src/app/(main)/error.tsx`（client component，`reset()` 重试）与 `src/app/global-error.tsx`
-4. **401 策略统一**：抽 `handleUnauthorized()`（清 token + 重置 auth store + `router.replace('/login')`），`lib/api/client.ts` 的 axios 拦截器与 `thread.tsx` 的 `authorizedFetch` 共用
-5. `stores/auth.ts::fetchMe()` 目前是**死代码**（零调用点）→ 在 `AuthGuard` 挂载时调用一次，使过期 token 在用户发起 run 之前就被发现
+4. **401 策略统一**：新增 `handleUnauthorized()`（清 token + 跳登录页），`lib/api/client.ts` 的 axios 拦截器与 `thread.tsx` 的 `authorizedFetch` 共用；登录页自身返回 401 时不再跳转（避免刷新循环）
+5. `stores/auth.ts::fetchMe()` 此前是**死代码**（零调用点）→ 在 `AuthGuard` 挂载时调用一次，使过期 token 在用户发起 run 之前就被发现
 
-**改动点**：`frontend-react/src/lib/stores/*.ts`、`frontend-react/src/lib/api/client.ts`、`frontend-react/src/components/agent/thread.tsx`、`frontend-react/src/app/(main)/error.tsx`（新）、`frontend-react/src/app/global-error.tsx`（新）、各页面空态判定
+**顺带修掉会话切换竞态**（同属一类问题）：`assistant.tsx` 的 `selectConversation` 此前没有请求序号保护，两次快速点击会让**先发后到的旧响应覆盖新选择**（工作区显示的会话与用户最后点击的不一致，`localStorage` 也被写错）。现在用 `selectRequestRef` 序号保护，只有最后一次请求的结果会被应用。
+
+**改动点**：`frontend-react/src/lib/stores/*.ts`、`frontend-react/src/lib/api/{client,errors}.ts`、`frontend-react/src/components/agent/thread.tsx`、`frontend-react/src/components/layout/error-state.tsx`（新）、`frontend-react/src/app/(main)/error.tsx`（新）、`frontend-react/src/app/global-error.tsx`（新）、`frontend-react/src/components/auth/AuthGuard.tsx`、`frontend-react/src/app/assistant.tsx`、各管理页空态判定
 
 **验证**：Playwright 断言后端返回 500 时页面显示错误态而非空态。
 

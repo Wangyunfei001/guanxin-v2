@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import { useAgentStore } from "@/lib/stores/agent"
+import { ErrorState } from "@/components/layout/error-state"
 import { useAuthStore } from "@/lib/stores/auth"
 import { cn } from "@/lib/utils"
 import type { AgentConfig } from "@/types"
@@ -82,7 +83,7 @@ function OptionList({ label, description, options, selected, readOnly, onToggle 
 }
 
 export default function AgentPage() {
-  const { skills, loading, config, configLoading, saving, loadSkills, loadConfig, saveConfig } =
+  const { skills, loading, config, configLoading, saving, error, loadSkills, loadConfig, saveConfig } =
     useAgentStore()
   const isAdmin = useAuthStore((state) => state.isAdmin)
   const [draft, setDraft] = React.useState<AgentConfig | null>(null)
@@ -170,7 +171,11 @@ export default function AgentPage() {
         ]}
       />
 
-      {configLoading || !draft ? (
+      {error ? (
+        <Card>
+          <ErrorState message={error} onRetry={() => void loadConfig()} />
+        </Card>
+      ) : configLoading || !draft ? (
         <Card>
           <div className="flex min-h-72 items-center justify-center text-sm text-muted-foreground">正在读取 Agent 配置</div>
         </Card>

@@ -8,7 +8,6 @@ fail-open」两个缺陷的根因。
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -342,6 +341,3 @@ def runtime_tools(entries: list[CatalogEntry], names: list[str] | None = None) -
         and (not allowed or entry.spec.name in allowed)
     ]
 
-
-def catalog_prompt(entries: list[CatalogEntry]) -> str:
-    return json.dumps(serialize_tool_specs(entries), ensure_ascii=False, indent=2)

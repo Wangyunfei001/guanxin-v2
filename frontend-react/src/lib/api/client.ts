@@ -1,5 +1,7 @@
 import axios, { type AxiosInstance } from "axios"
 
+import { handleUnauthorized } from "@/lib/api/errors"
+
 /**
  * Base URL for API requests.
  * Uses Next.js rewrite proxy (/api -> http://localhost:8000/api) in development.
@@ -37,9 +39,7 @@ client.interceptors.response.use(
   (response) => response.data,
   (error) => {
     if (typeof window !== "undefined" && error.response?.status === 401) {
-      localStorage.removeItem("access_token")
-      localStorage.removeItem("user_info")
-      window.location.href = "/login"
+      handleUnauthorized()
     }
     return Promise.reject(error)
   },

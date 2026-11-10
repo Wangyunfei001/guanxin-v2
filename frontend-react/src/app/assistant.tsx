@@ -10,7 +10,7 @@ import {
   X,
 } from "@phosphor-icons/react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { AgentThread } from "@/components/agent/thread"
 import { Button } from "@/components/ui/button"
@@ -132,13 +132,22 @@ export default function Assistant() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const reduceMotion = useReducedMotion()
   const openInspector = useLayoutStore((state) => state.openInspector)
+  // Guards against out-of-order responses: the later arrival must win, not
+  // the later request.
+  const selectRequestRef = useRef(0)
 
   const selectConversation = useCallback(async (conversationId: string) => {
-    const response = await agentApi.getConversation(conversationId)
-    if (response.code !== 0 || !response.data) return
-    setActive(response.data)
-    localStorage.setItem(ACTIVE_CONVERSATION_KEY, conversationId)
-    setDrawerOpen(false)
+    const requestId = ++selectRequestRef.current
+    try {
+      const response = await agentApi.getConversation(conversationId)
+      if (requestId !== selectRequestRef.current) return
+      if (response.code !== 0 || !response.data) return
+      setActive(response.data)
+      localStorage.setItem(ACTIVE_CONVERSATION_KEY, conversationId)
+      setDrawerOpen(false)
+    } catch (error) {
+      console.error("加载会话失败", error)
+    }
   }, [])
 
   const createConversation = useCallback(async () => {
