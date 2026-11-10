@@ -129,3 +129,36 @@ test("persistent workflow collects input, executes approval and survives refresh
     expect(restoreResponse.ok()).toBeTruthy()
   }
 })
+
+test("a question about deleting a user gets an answer, not an approval card", async ({ page }) => {
+  await login(page)
+
+  const token = await page.evaluate(() => localStorage.getItem("access_token"))
+  const headers = { Authorization: `Bearer ${token}` }
+  const conversation = await page.request.post("/api/agent/conversations", {
+    headers,
+    data: { title: "问句不建工作流" },
+  })
+  const conversationId = (await conversation.json()).data.conversation_id
+  await page.evaluate((id) => {
+    localStorage.setItem("guanxin_active_conversation", id)
+  }, conversationId)
+  await page.reload()
+
+  const composer = page.getByLabel("输入消息")
+  await composer.fill("如何删除用户")
+  await page.getByRole("button", { name: "发送消息" }).click()
+
+  // No workflow card, no parameter form — a question is answered, not executed.
+  await expect(page.getByText("执行轨迹", { exact: true })).toHaveCount(0)
+  await expect(page.getByText("补充参数：删除用户")).toHaveCount(0)
+  await expect(page.getByText("确认执行：删除用户")).toHaveCount(0)
+
+  await expect.poll(async () => {
+    const current = await page.request.get(`/api/agent/threads/${conversationId}/state`, { headers })
+    const values = (await current.json()).values
+    return { status: values.run_status, hasWorkflow: Boolean(values.workflow) }
+  }).toEqual({ status: "completed", hasWorkflow: false })
+
+  await page.request.delete(`/api/agent/conversations/${conversationId}`, { headers })
+})

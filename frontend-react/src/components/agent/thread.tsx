@@ -12,7 +12,9 @@ import { handleUnauthorized } from "@/lib/api/errors"
 import type { HistoricalMessage, WorkflowData, ResearchData } from "@/types"
 import { WorkflowDataRenderer } from "./workflow-card"
 import { ResearchDataRenderer } from "./research-card"
-import { parseUsersResult, dashboardNumbers, isDashboardRestatement, stripDashboardMarker, UsersDashboard } from "./users-dashboard"
+import { parseUsersResult, dashboardNumbers, isDashboardRestatement, stripDashboardMarker } from "./users-dashboard-data"
+import { UsersDashboard } from "./users-dashboard"
+import { composeMessage, exceedsInputLimit } from "./compose"
 
 type AgentState = {
   messages: { type: string; content: unknown; id?: string }[]
@@ -86,8 +88,8 @@ function NativeThread({ conversationId, history, refresh }: { conversationId: st
     const text = draft.trim()
     if (!text || disabled) return
     setActionError("")
-    const content = attachment ? `${text}\n\n附件 ${attachment.name}：\n${attachment.content}` : text
-    if (content.length > 100_000) {
+    const content = composeMessage(text, attachment)
+    if (exceedsInputLimit(content)) {
       setActionError("消息和附件合计不能超过 100000 字符")
       return
     }

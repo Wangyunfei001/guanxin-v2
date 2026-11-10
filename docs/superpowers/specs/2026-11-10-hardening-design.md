@@ -448,9 +448,11 @@ type ApiClient = {
 | `tests/test_workflow_intent.py` | B7 问句不建工作流 |
 | `tests/test_agent_event_store.py` | B8 写入量与事件循环不阻塞 |
 
-**前端单测**：引入 `vitest`（仅纯函数，不引入 jsdom / testing-library），覆盖 `users-dashboard.tsx` 导出的 `parseUsersResult` / `isDashboardRestatement` / `stripDashboardMarker` / `dashboardNumbers`（表格用例，约 30 行）+ `submit` 失败恢复草稿的纯函数。接进 CI。
+**前端单测**：引入 `vitest`（仅纯函数，不引入 jsdom / testing-library）。看板的解析与判定逻辑从组件里抽到 `src/components/agent/users-dashboard-data.ts`（否则测试会拖进 React + recharts），覆盖 `parseUsersResult` / `dashboardNumbers` / `stripDashboardMarker` / `isDashboardRestatement`（17 条表格用例）；消息组装与长度校验抽到 `compose.ts`（5 条）。接进 CI。
 
-**Playwright 增补**：跨租户 MCP 隔离、上传超限、问句不建工作流。
+**Playwright 增补**：`e2e/authorization.spec.ts` 覆盖上传超限（e2e 后端把上限压到 1 MB）、MCP Server 跨租户隔离、env 值不外泄；`e2e/workflow.spec.ts` 增补「问句不建工作流」用例（确定性 fixture 下模型只回答不调工具，断言没有审批卡与工作流状态）。
+
+**CI**：新增 `npm run test:unit` 步骤；fixture 那一轮包含工作流用例。
 
 ---
 

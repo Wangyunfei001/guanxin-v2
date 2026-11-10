@@ -211,10 +211,11 @@ pytest -q
 cd ../frontend-react
 npm run lint
 npm run typecheck
+npm run test:unit
 npm run build
 npx playwright install chromium
 npm run test:e2e
-GUANXIN_E2E_AGENT_FIXTURE=1 npm run test:e2e -- e2e/native-agent.spec.ts
+GUANXIN_E2E_AGENT_FIXTURE=1 npm run test:e2e -- e2e/native-agent.spec.ts e2e/workflow.spec.ts
 ```
 
 完整 pytest 包含真正的 MCP stdio 协议测试；也可单独运行 `pytest tests/test_mcp_gateway.py -q`。CI 在 PR 和 main push 上运行 Python 3.13、Node 20、lint、类型检查、构建、pytest 和 Chromium E2E，不配置真实 API Key。
@@ -222,6 +223,8 @@ GUANXIN_E2E_AGENT_FIXTURE=1 npm run test:e2e -- e2e/native-agent.spec.ts
 pytest/Playwright 使用系统临时数据目录；Playwright 的 SQLite、checkpoint、Chroma、uploads、users JSON 位于同一临时根目录，结束时精确清理。测试前端使用 `.next-e2e` 和专用端口，不访问现有开发服务。自定义本地实例可设置 `GUANXIN_BACKEND_URL`（Next.js 代理目标）及 `NEXT_DIST_DIR`（独立构建缓存）。
 
 当前测试覆盖 SQLite 幂等与重启持久、外键级联、并发写、租户/用户隔离、RBAC、A2UI 契约、Agent 配置、Deep Agents 工具循环与恢复、结构化工具 Schema、稳定 tool call、Research 来源去重与持久化、工作流 interrupt/resume、风险步骤故障接管及幂等执行。
+
+前端单测（vitest）只覆盖纯逻辑：用户统计看板的解析与复述判定、消息组装与长度校验；组件行为由 Playwright 覆盖。`npm run test:e2e` 里的 `e2e/workflow.spec.ts` 与 `e2e/native-agent.spec.ts` 需要确定性模型 fixture，在 `GUANXIN_E2E_AGENT_FIXTURE=1` 那一轮运行。
 
 ## 真实模型评估
 
