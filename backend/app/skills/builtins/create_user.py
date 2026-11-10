@@ -38,12 +38,8 @@ class CreateUserSkill(BaseSkill):
 
         try:
             user = create_user(username=username, email=email, role=role)
-            # Include chart data for visualization
-            all_users = query_users()
-            role_counts = {}
-            for u in all_users.get("users", []):
-                r = u.get("role", "unknown")
-                role_counts[r] = role_counts.get(r, 0) + 1
+            # Chart data comes from the full filtered set, not from the current page.
+            role_counts = query_users().get("statistics", {}).get("roles", {})
             return SkillResult(
                 success=True,
                 output={

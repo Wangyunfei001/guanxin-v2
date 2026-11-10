@@ -26,22 +26,16 @@ class QueryUsersSkill(BaseSkill):
         )
 
     async def execute(self, params: Dict[str, Any], context: SkillContext) -> SkillResult:
-        keyword = params.get("keyword", "")
-        role = params.get("role", "")
-        page = int(params.get("page", 1))
-        page_size = int(params.get("page_size", 10))
+        # Optional arguments arrive as None when the model omits them, so normalize here.
+        keyword = params.get("keyword") or ""
+        role = params.get("role") or ""
+        page = int(params.get("page") or 1)
+        page_size = int(params.get("page_size") or 10)
 
         result = query_users(keyword=keyword, role=role, page=page, page_size=page_size)
 
-        # Generate chart data from actual user list
-        users = result.get("users", [])
-        role_counts = {}
-        status_counts = {}
-        for u in users:
-            r = u.get("role", "unknown")
-            role_counts[r] = role_counts.get(r, 0) + 1
-            s = u.get("status", "unknown")
-            status_counts[s] = status_counts.get(s, 0) + 1
+        # Chart data is derived from the same full filtered set the dashboard shows.
+        role_counts = result.get("statistics", {}).get("roles", {})
 
         return SkillResult(
             success=True,

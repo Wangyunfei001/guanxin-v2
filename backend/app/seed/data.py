@@ -66,7 +66,8 @@ SEED_AGENT_CONFIGS: List[Dict[str, Any]] = [
         "temperature": 0.7,
         "max_tokens": 4096,
         "enabled_tools": ["kb_retrieval", "web_search"],
-        "enabled_skills": ["data_analysis", "text_summary"],
+        # query_users is read-only and admin-only; it powers the users dashboard.
+        "enabled_skills": ["data_analysis", "text_summary", "query_users"],
         "mcp_servers": ["weather"],
     },
 ]

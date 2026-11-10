@@ -11,6 +11,7 @@ import { selectHasActiveWorkflow, useWorkflowUiStore } from "@/lib/stores/workfl
 import type { HistoricalMessage, WorkflowData, ResearchData } from "@/types"
 import { WorkflowDataRenderer } from "./workflow-card"
 import { ResearchDataRenderer } from "./research-card"
+import { parseUsersResult, dashboardNumbers, isDashboardRestatement, stripDashboardMarker, UsersDashboard } from "./users-dashboard"
 
 type AgentState = {
   messages: { type: string; content: unknown; id?: string }[]
@@ -54,6 +55,11 @@ function NativeThread({ conversationId, history, refresh }: { conversationId: st
     fetch: authorizedFetch,
   }), [conversationId])
   const stream = useStream<AgentState>({ transport, threadId: conversationId })
+  // One parse per tool message: the dashboard and the reply check share the result.
+  const parsedUsers = useMemo(() => stream.messages.map((message) => {
+    if (message.getType() !== "tool" || message.name !== "skill__query_users") return null
+    return parseUsersResult(textContent(message.content))
+  }), [stream.messages])
   const fileInput = useRef<HTMLInputElement>(null)
   const [attachment, setAttachment] = useState<{ name: string; content: string } | null>(null)
   const [draft, setDraft] = useState("")
@@ -120,9 +126,32 @@ function NativeThread({ conversationId, history, refresh }: { conversationId: st
         {stream.messages.length === 0 && history.map((message) => <article key={message.id} className={message.role === "user" ? "ml-auto w-fit max-w-[90%] rounded-2xl bg-muted px-4 py-3" : "py-2"}><Markdown text={message.parts.filter((part) => part.type === "text").map((part) => part.text).join("")} /></article>)}
         {stream.messages.map((message, index) => {
           const type = message.getType()
-          const text = textContent(message.content)
-          if (type === "tool") return <details key={message.id || index} className="rounded-xl border bg-card p-3 text-sm"><summary className="cursor-pointer text-muted-foreground">工具结果 · {message.name || "执行结果"}</summary><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs">{text}</pre></details>
+          const rawText = textContent(message.content)
+          const toolCalls = "tool_calls" in message && Array.isArray(message.tool_calls) ? message.tool_calls : []
+          if (type === "tool" && message.name === "skill__query_users") {
+            const data = parsedUsers[index]
+            if (data) return <UsersDashboard key={message.id || index} data={data} />
+          }
+          if (type === "tool") return <details key={message.id || index} className="rounded-xl border bg-card p-3 text-sm"><summary className="cursor-pointer text-muted-foreground">工具结果 · {message.name || "执行结果"}</summary><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs">{rawText}</pre></details>
           if (type !== "human" && type !== "ai") return null
+          // The marker is a prompt contract and never reaches the user.
+          const text = type === "ai" ? stripDashboardMarker(rawText) : rawText
+          // A tool call carries no prose of its own; the tool result renders on its own.
+          if (type === "ai" && toolCalls.length > 0 && !text.trim()) return null
+          // A marked reply is dropped only when the dashboard for this turn is on screen.
+          if (type === "ai" && toolCalls.length === 0) {
+            let turnStart = index - 1
+            while (turnStart >= 0 && stream.messages[turnStart].getType() !== "human") turnStart--
+            const toolIndexes: number[] = []
+            for (let cursor = turnStart + 1; cursor < index; cursor++) {
+              if (stream.messages[cursor].getType() === "tool") toolIndexes.push(cursor)
+            }
+            const dashboards = toolIndexes.map((cursor) => parsedUsers[cursor]).filter((data) => data !== null)
+            const onlyUserQuery = toolIndexes.length > 0 && dashboards.length === toolIndexes.length
+              && toolIndexes.every((cursor) => stream.messages[cursor].name === "skill__query_users")
+            if (onlyUserQuery && isDashboardRestatement(rawText, dashboards.flatMap(dashboardNumbers))) return null
+          }
+          if (!text.trim()) return null
           return <article key={message.id || index} data-message-role={type} className={type === "human" ? "ml-auto w-fit max-w-[90%] rounded-2xl bg-muted px-4 py-3" : "py-2"}><Markdown text={text} /></article>
         })}
         {stream.toolCalls.length > 0 && <details className="rounded-xl border p-3 text-sm"><summary>工具调用 · {stream.toolCalls.length}</summary>{stream.toolCalls.map((call, index) => <pre key={index} className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify(call, null, 2)}</pre>)}</details>}

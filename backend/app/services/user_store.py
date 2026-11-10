@@ -91,6 +91,13 @@ def query_users(keyword: str = "", role: str = "", page: int = 1, page_size: int
     if role:
         users = [u for u in users if u["role"] == role]
     total = len(users)
+    role_counts: dict[str, int] = {}
+    status_counts: dict[str, int] = {}
+    for user in users:
+        role_key = user.get("role") or "unknown"
+        status_key = user.get("status") or "unknown"
+        role_counts[role_key] = role_counts.get(role_key, 0) + 1
+        status_counts[status_key] = status_counts.get(status_key, 0) + 1
     start = (page - 1) * page_size
     page_users = users[start : start + page_size]
     return {
@@ -98,6 +105,9 @@ def query_users(keyword: str = "", role: str = "", page: int = 1, page_size: int
         "total": total,
         "page": page,
         "page_size": page_size,
+        "statistics": {"total": total, "roles": role_counts, "statuses": status_counts},
+        # Filters are echoed as plain strings: callers may pass None for an unset filter.
+        "filters": {"keyword": keyword or "", "role": role or ""},
     }
 
 

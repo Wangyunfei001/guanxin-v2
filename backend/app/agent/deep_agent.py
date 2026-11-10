@@ -143,6 +143,7 @@ async def build_deep_agent(conversation_id: str, user: User, mode: str = "auto",
         tools.extend([read_source, record_citation])
     prompt = f"""{config.system_prompt}
 你是观心企业任务助理。使用授权工具完成用户目标，验证结果后再说明完成。
+skill__query_users 成功返回后，统计数字由界面单独展示。回复只是在复述这些数字时，正文以 [看板] 开头并立即结束（该正文不会显示）；要在看板之外补充信息时，正文不要带 [看板] 前缀，直接写补充内容。不要写用户表格、统计列表或后续操作建议。查询失败或同时执行其他任务时，正常说明错误或其他任务结果；统计口径以返回的 statistics 和 filters 为准。
 当前研究模式：{mode}。复杂研究先列出计划，使用可靠来源，明确证据不足。
 需要交付报告时调用 write_file，将带来源链接的 Markdown 报告保存到 /reports/，最后告知文件路径。
 报告正文使用真实换行；每项关键事实后使用 [来源名称](URL) 格式。用户提供的资料明确标注未经联网核实。
