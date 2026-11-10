@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     # === 文件上传 ===
     upload_dir: str = "./data/uploads"
     user_data_path: str = "./data/users.json"
-    max_upload_size_mb: int = 20
+    max_upload_size_mb: PositiveInt = 20
 
     # === CORS ===
     cors_origins: str = "http://localhost:3000"

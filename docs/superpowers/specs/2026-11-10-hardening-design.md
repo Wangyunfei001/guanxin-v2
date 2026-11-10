@@ -165,10 +165,12 @@ class MCPServerManager:
 
 **方案**：
 
-1. 预检 `Content-Length`（若存在且 > 限额 → 直接 413，不读 body）
-2. 分块读：`while chunk := await file.read(1 << 20)`，累计字节数超限 → 抛 `HTTPException(413)`
+1. 预检 `file.size`（multipart 解析器已知长度时 → 直接 413，不读 body）
+2. 分块读：`while chunk := await file.read(1 MiB)`，累计字节数超限 → 抛 `HTTPException(413)`
 3. 超限时确保不落盘（解析发生在 `knowledge_service.upload_document` 内，校验在调用前完成）
 4. 错误信息不回显限额以内的路径或内部细节
+
+峰值内存因此被 `max_upload_size_mb` 硬性封顶，不再随请求体大小无限增长。
 
 `max_upload_size_mb` 从死配置变为真正被读取的配置。
 
