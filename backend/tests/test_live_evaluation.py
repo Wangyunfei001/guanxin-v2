@@ -15,7 +15,7 @@ def test_observed_url_is_not_automatic_entailment():
     assert result["entailment"] == "requires_human_review"
 
 
-def test_legacy_resume_migrates_once_and_preserves_archive(test_client, admin_headers, user_headers, monkeypatch):
+async def test_legacy_resume_migrates_once_and_preserves_archive(test_client, admin_headers, user_headers, monkeypatch):
     from tests.test_langchain import new_thread
     from app.services.research_store import get_research_store
     from app.api import research
@@ -35,10 +35,10 @@ def test_legacy_resume_migrates_once_and_preserves_archive(test_client, admin_he
     assert launched[0][1].user_id == "admin-001"
     saved = store.get_run(run["run_id"])
     assert saved["report"] == "历史报告原文" and saved["status"] == "cancelled"
-    runs.finish_run(launched[0][0], "completed")
+    await runs.finish_run(launched[0][0], "completed")
 
 
-def test_legacy_resume_respects_active_native_run(test_client, admin_headers):
+async def test_legacy_resume_respects_active_native_run(test_client, admin_headers):
     from tests.test_langchain import new_thread
     from app.services.research_store import get_research_store
     from app.services import agent_run_store as runs
@@ -46,7 +46,7 @@ def test_legacy_resume_respects_active_native_run(test_client, admin_headers):
     store = get_research_store()
     old = store.create_run(tenant_id="tenant-a", user_id="admin-001", conversation_id=cid, mode="quick", goal="核实历史资料", budget={})
     store.set_status(old["run_id"], "interrupted")
-    native, _ = runs.admit_run(cid, "busy")
+    native, _ = await runs.admit_run(cid, "busy")
     assert test_client.post(f'/api/agent/research/{old["run_id"]}/resume', headers=admin_headers).status_code == 409
     assert store.get_run(old["run_id"])["status"] == "interrupted"
-    runs.finish_run(native, "completed")
+    await runs.finish_run(native, "completed")

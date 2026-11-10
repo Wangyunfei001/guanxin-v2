@@ -51,7 +51,7 @@ def settled(client, headers, cid):
     raise AssertionError("native agent failed to settle")
 
 
-def test_native_graph_writes_artifact_and_restores_tool_order(test_client, admin_headers, monkeypatch):
+async def test_native_graph_writes_artifact_and_restores_tool_order(test_client, admin_headers, monkeypatch):
     model = ScriptedModel(responses=[
         AIMessage(content="", tool_calls=[{"name": "write_file", "args": {
             "file_path": "/reports/result.md", "content": "# 测试报告\n已验证"}, "id": "write-report"}]),
@@ -75,7 +75,7 @@ def test_native_graph_writes_artifact_and_restores_tool_order(test_client, admin
     reloaded = test_client.get(f"/api/agent/threads/{cid}/state", headers=admin_headers).json()["values"]
     assert reloaded["files"] == values["files"]
     assert reloaded["messages"] == values["messages"]
-    replay = runs.read_events(cid, 0)
+    replay = await runs.read_events(cid, 0)
     assert {e["method"] for e in replay} >= {"lifecycle", "values"}
     assert len({e["event_id"] for e in replay}) == len(replay)
     # Same client message id cannot start the task twice.
@@ -112,7 +112,7 @@ def test_native_disallowed_delegation_fails_closed(test_client, admin_headers, m
     assert "未启用" in state["run_error"]
 
 
-def test_cancel_preserves_run_and_rejects_concurrent_submit(test_client, admin_headers, monkeypatch):
+async def test_cancel_preserves_run_and_rejects_concurrent_submit(test_client, admin_headers, monkeypatch):
     async def slow_builder(*args, **kwargs):
         await asyncio.Event().wait()
     from app.agent import thread_service
@@ -125,7 +125,7 @@ def test_cancel_preserves_run_and_rejects_concurrent_submit(test_client, admin_h
     assert submit(test_client, admin_headers, cid, "另一条").status_code == 409
     assert test_client.post(f"/api/agent/threads/{cid}/cancel", headers=admin_headers).status_code == 200
     assert settled(test_client, admin_headers, cid)["run_status"] == "cancelled"
-    assert runs.read_events(cid, 0)[-1]["params"]["data"]["event"] == "interrupted"
+    assert (await runs.read_events(cid, 0))[-1]["params"]["data"]["event"] == "interrupted"
 
 
 def test_unconfigured_model_reports_failure_without_fake_success(test_client, admin_headers):

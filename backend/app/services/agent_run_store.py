@@ -2,9 +2,18 @@
 
 Checkpoints remain the execution state. This store owns only run admission,
 delivery/replay and outcome; it never reconstructs the agent's tool loop.
+
+写入在工作线程执行。v3 协议下**每个模型 chunk 都会产生一个事件**，如果
+同步提交，整条写事务都发生在事件循环里——同一进程上所有会话的流都会被
+拖慢。复用 ``app.core.sqlite`` 的既有纪律（WAL、busy_timeout、
+BEGIN IMMEDIATE、外键），只是把提交挪出事件循环。
+
+事件写入只做**一条 INSERT**：``seq`` 与 ``event_id`` 在读取时补齐，因此
+不需要先插空行再回填 payload 的两步写。
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
@@ -31,14 +40,26 @@ def initialize_agent_runs() -> None:
         db.execute("CREATE INDEX IF NOT EXISTS agent_events_thread ON agent_events(conversation_id,seq)")
 
 
-def latest_run(conversation_id: str) -> dict | None:
+def protocol_event(method: str, data: Any) -> dict:
+    return {"type": "event", "method": method,
+            "params": {"namespace": [], "timestamp": int(time.time() * 1000), "data": data}}
+
+
+def _latest_run_sync(conversation_id: str) -> dict | None:
     with closing(connect()) as db:
-        row = db.execute("SELECT * FROM agent_runs WHERE conversation_id=? ORDER BY created_at DESC LIMIT 1",
-                         (conversation_id,)).fetchone()
+        row = db.execute(
+            "SELECT * FROM agent_runs WHERE conversation_id=? ORDER BY created_at DESC LIMIT 1",
+            (conversation_id,),
+        ).fetchone()
         return dict(row) if row else None
 
 
-def admit_run(conversation_id: str, request_key: str) -> tuple[dict, bool]:
+async def latest_run(conversation_id: str) -> dict | None:
+    """最近一次运行；读取在工作线程执行。"""
+    return await asyncio.to_thread(_latest_run_sync, conversation_id)
+
+
+def _admit_run_sync(conversation_id: str, request_key: str) -> tuple[dict, bool]:
     with transaction() as db:
         row = db.execute("SELECT * FROM agent_runs WHERE conversation_id=? AND request_key=?",
                          (conversation_id, request_key)).fetchone()
@@ -53,22 +74,32 @@ def admit_run(conversation_id: str, request_key: str) -> tuple[dict, bool]:
         return run, True
 
 
-def append_event(run: dict, event: dict[str, Any]) -> None:
+async def admit_run(conversation_id: str, request_key: str) -> tuple[dict, bool]:
+    """准入一次运行；同一会话至多一个 running。"""
+    return await asyncio.to_thread(_admit_run_sync, conversation_id, request_key)
+
+
+def _insert_event_sync(conversation_id: str, run_id: str, payload: str) -> None:
     with transaction() as db:
-        cursor = db.execute("INSERT INTO agent_events(conversation_id,run_id,payload) VALUES (?,?,?)",
-                            (run["conversation_id"], run["run_id"], ""))
-        seq = cursor.lastrowid
-        event = {**event, "type": "event", "seq": seq, "event_id": f"{run['run_id']}:{seq}"}
-        db.execute("UPDATE agent_events SET payload=? WHERE seq=?",
-                   (json.dumps(event, ensure_ascii=False), seq))
+        db.execute(
+            "INSERT INTO agent_events(conversation_id,run_id,payload) VALUES (?,?,?)",
+            (conversation_id, run_id, payload),
+        )
 
 
-def protocol_event(method: str, data: Any) -> dict:
-    return {"type": "event", "method": method,
-            "params": {"namespace": [], "timestamp": int(time.time() * 1000), "data": data}}
+async def append_event(run: dict, event: dict[str, Any]) -> None:
+    """持久化一个事件。
+
+    ``seq`` 与 ``event_id`` 在读取时补齐——写入因此只有一条 INSERT，
+    而不是先插空行再 UPDATE 回填 payload 的两步写。
+    """
+    payload = json.dumps({**event, "type": "event"}, ensure_ascii=False)
+    await asyncio.to_thread(
+        _insert_event_sync, run["conversation_id"], run["run_id"], payload
+    )
 
 
-def finish_run(run: dict, status: str, error: str = "") -> None:
+def _finish_run_sync(run: dict, status: str, error: str) -> None:
     with transaction() as db:
         db.execute("UPDATE agent_runs SET status=?,error=? WHERE run_id=?",
                    (status, error, run["run_id"]))
@@ -76,18 +107,44 @@ def finish_run(run: dict, status: str, error: str = "") -> None:
     data = {"event": phase}
     if error:
         data["error"] = error
-    append_event(run, protocol_event("lifecycle", data))
+    payload = json.dumps(
+        {**protocol_event("lifecycle", data), "type": "event"}, ensure_ascii=False
+    )
+    _insert_event_sync(run["conversation_id"], run["run_id"], payload)
 
 
-def recover_agent_runs() -> None:
+async def finish_run(run: dict, status: str, error: str = "") -> None:
+    """结束一次运行并追加终止事件。"""
+    await asyncio.to_thread(_finish_run_sync, run, status, error)
+
+
+def _running_runs_sync() -> list[Any]:
     with closing(connect()) as db:
-        rows = db.execute("SELECT * FROM agent_runs WHERE status='running'").fetchall()
+        return db.execute("SELECT * FROM agent_runs WHERE status='running'").fetchall()
+
+
+async def recover_agent_runs() -> None:
+    """把重启前遗留的 running 标记为 interrupted。"""
+    rows = await asyncio.to_thread(_running_runs_sync)
     for row in rows:
-        finish_run(dict(row), "interrupted", "服务重启，任务已中断；请确认后继续。")
+        await finish_run(
+            dict(row), "interrupted", "服务重启，任务已中断；请确认后继续。"
+        )
 
 
-def read_events(conversation_id: str, since: int) -> list[dict]:
+def _read_events_sync(conversation_id: str, since: int) -> list[tuple[int, str, str]]:
     with closing(connect()) as db:
-        rows = db.execute("SELECT payload FROM agent_events WHERE conversation_id=? AND seq>? ORDER BY seq LIMIT 256",
-                          (conversation_id, since)).fetchall()
-    return [json.loads(row[0]) for row in rows]
+        rows = db.execute(
+            "SELECT seq,run_id,payload FROM agent_events WHERE conversation_id=? AND seq>? ORDER BY seq LIMIT 256",
+            (conversation_id, since),
+        ).fetchall()
+    return [(row[0], row[1], row[2]) for row in rows]
+
+
+async def read_events(conversation_id: str, since: int) -> list[dict]:
+    """按 ``seq`` 游标读取可重放事件。"""
+    rows = await asyncio.to_thread(_read_events_sync, conversation_id, since)
+    events: list[dict] = []
+    for seq, run_id, payload in rows:
+        events.append({**json.loads(payload), "seq": seq, "event_id": f"{run_id}:{seq}"})
+    return events

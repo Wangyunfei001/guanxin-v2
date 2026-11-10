@@ -277,31 +277,30 @@ risk = "write" if metadata.effect == "write" else "read"
 
 v3 协议**每个模型 chunk 发一个 `content-delta`**（已核对安装的 `langchain-core/chat_models.py:717-723` 的 `achunks_to_events`，且 `ChatOpenAI(streaming=True)` 见 `app/agent/llm.py:33`）。实测 `append_event` ≈ 0.62 ms/次 → ~1600 events/s 上限，**全部发生在事件循环内**。1k token 的回答 ≈ 1k 次事务 ≈ 阻塞事件循环 0.6s，期间 SSE 轮询、`/state`、其他租户的 run 全部排队。
 
-**方案**（决策 D1：aiosqlite）：
+**方案**（决策 D1：异步写）：
 
-1. 新增 `app/core/async_sqlite.py`：
-   - **单个共享 `aiosqlite.Connection`**（模块级 lazy 单例，后台线程常驻）
-   - `async def transaction()`：用 `asyncio.Lock` 串行化写事务，保证 `BEGIN IMMEDIATE … COMMIT` 不被其他协程插入操作打断
-   - `async def close_async_database()`：lifespan 关闭时释放
-2. `app/services/agent_run_store.py` 全模块改 async（写与读），DDL 复用 `core/sqlite.initialize_database()` 的版本化脚本，不再自建表
-3. `app/agent/thread_service.py` 的调用点改 `await`
-4. **`append_event` 合并为单条 INSERT**：`seq` 用自增 rowid，`event_id` 与 payload 里的 `seq` 在**读取时**由 `read_events` 补齐（写路径不再需要 INSERT → UPDATE 两步）。写入量直接减半
+1. `app/services/agent_run_store.py` 的写入函数改为 async，底层用 `asyncio.to_thread` 把提交挪出事件循环，**复用 `app/core/sqlite.py` 的既有纪律**（WAL、`busy_timeout=5000`、`BEGIN IMMEDIATE`、外键、参数化 SQL）——那套纪律已经被 176 条测试覆盖
+2. **`append_event` 合并为单条 INSERT**：`seq` 与 `event_id` 在 `read_events` 时补齐，写入不再需要「先插空行、再 UPDATE 回填 payload」的两步写。每条事件的写入量减半
+3. `thread_service` / `api/langchain.py` / `api/research.py` / `main.py` 的调用点相应 `await`
 
-**为什么不逐操作开连接**：`aiosqlite` 每个 Connection 绑定一个后台线程，保持「每次操作新开连接」会变成每次操作 spawn 一个线程，比现状更慢。
+**为什么不用共享 aiosqlite 连接**（实施时对原方案的调整）：`aiosqlite` 的每个 Connection 绑定一个后台线程，沿用「每次操作新开连接」会变成每次操作 spawn 一个线程；而共享单个连接需要额外引入连接生命周期与跨事件循环的锁管理——而 SQLite 本身就是单写者，共享连接并不带来吞吐收益。`asyncio.to_thread` 拿到的是完全相同的性质（写不阻塞事件循环），却没有生命周期与跨循环隐患。
 
-**读路径保持同步 sqlite3**：读耗时 <1ms，且全量 async 化的爆炸半径过大（10+ store 文件、几十处调用点）。WAL 模式下多连接安全。
+**读路径保持同步 sqlite3**：读耗时 <1ms，且全量 async 化的爆炸半径过大。WAL 模式下多连接安全。
 
 **已知遗留**（本方案**不**解决，见「已接受的技术债」#1、#2）：
 
 - 每 token 仍是一次事务（fsync 次数未降）
 - `values` 事件仍内嵌全量消息列表 → 事件表体积 O(n²)
 
-**改动点**：`app/core/async_sqlite.py`（新）、`app/services/agent_run_store.py`、`app/agent/thread_service.py`、`app/api/langchain.py`（读事件改 await）、`app/main.py`（lifespan 关闭）
+**改动点**：`app/services/agent_run_store.py`、`app/agent/thread_service.py`、`app/api/langchain.py`、`app/api/research.py`、`app/main.py`
 
-**验证**：
+**验证**：`tests/test_agent_event_store.py`（5 条）
 
-- 新增断言：同一段输出的 `agent_events` **行数**与**总字节数**不高于改造前基线（记录基线值到测试常量）
-- 新增断言：`append_event` 不阻塞事件循环（并发跑一个心跳协程，断言其 tick 数在阈值内）
+- `loop.call_soon` 排的回调能在写入期间执行 → 确定性地证明事件循环没有被阻塞
+- 每条事件只占一行，落库 payload 不含 `seq` / `event_id`
+- 读取时补齐单调递增的 `seq` 与稳定的 `event_id`
+- 游标重放语义不变（增量读取与全量一致）
+- 终止事件仍按既有约定写入
 
 ### B9 · 发送失败时恢复草稿与附件
 

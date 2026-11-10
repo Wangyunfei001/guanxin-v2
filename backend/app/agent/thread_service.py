@@ -43,7 +43,7 @@ async def thread_values(conversation) -> dict:
         conversation.conversation_id, conversation.tenant_id, conversation.user_id)
     if active:
         values["workflow"] = workflow_public_data(active)
-    run = runs.latest_run(conversation.conversation_id)
+    run = await runs.latest_run(conversation.conversation_id)
     values["run_status"] = run["status"] if run else "idle"
     values["run_error"] = run["error"] if run else ""
     from app.research.ledger import snapshot
@@ -86,7 +86,7 @@ async def _execute(run: dict, user: User, message: dict | None, mode: str) -> No
     cid = run["conversation_id"]
     store = get_conversation_store()
     set_tenant_context(user.tenant_id, user.user_id, user.role)
-    runs.append_event(run, runs.protocol_event("lifecycle", {"event": "running"}))
+    await runs.append_event(run, runs.protocol_event("lifecycle", {"event": "running"}))
     try:
         async with asyncio.timeout(480):
             conversation = store.get_conversation_for_user(cid, user.tenant_id, user.user_id)
@@ -133,14 +133,14 @@ async def _execute(run: dict, user: User, message: dict | None, mode: str) -> No
                         continue  # our task terminal follows checkpoint + business persistence
                     if event.get("method") == "values" and not event["params"]["namespace"]:
                         event["params"]["data"]["run_status"] = "running"
-                    runs.append_event(run, event)
+                    await runs.append_event(run, event)
             await _persist_transcript(cid, user)
             fresh = store.get_conversation_for_user(cid, user.tenant_id, user.user_id)
             values = await thread_values(fresh)
             status = "waiting_approval" if values.get("workflow") else "completed"
             values["run_status"] = status
-            runs.append_event(run, runs.protocol_event("values", values))
-            runs.finish_run(run, status)
+            await runs.append_event(run, runs.protocol_event("values", values))
+            await runs.finish_run(run, status)
     except asyncio.CancelledError:
         try:
             await _persist_transcript(cid, user)
@@ -161,9 +161,9 @@ async def _finish_failed_run(run: dict, user: User, status: str, error: str = ""
         if conversation:
             values = await thread_values(conversation)
             values.update(run_status=status, run_error=error)
-            runs.append_event(run, runs.protocol_event("values", values))
+            await runs.append_event(run, runs.protocol_event("values", values))
     finally:
-        runs.finish_run(run, status, error)
+        await runs.finish_run(run, status, error)
 
 
 async def _persist_transcript(cid: str, user: User) -> None:

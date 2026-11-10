@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
     from app.services.agent_run_store import initialize_agent_runs, recover_agent_runs
 
     initialize_agent_runs()
-    recover_agent_runs()
+    await recover_agent_runs()
 
     logger.info("Initializing LangGraph checkpoints...")
     await initialize_checkpointer()
