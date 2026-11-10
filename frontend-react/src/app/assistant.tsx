@@ -132,30 +132,46 @@ export default function Assistant() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const reduceMotion = useReducedMotion()
   const openInspector = useLayoutStore((state) => state.openInspector)
-  // Guards against out-of-order responses: the later arrival must win, not
-  // the later request.
-  const selectRequestRef = useRef(0)
+  // Which conversation the user currently wants. Only a user action may set
+  // it; the initial selection only fills it when it is still empty. Responses
+  // apply only while they are still the wanted conversation — so an initial
+  // selection can never swap the thread under the user, no matter which
+  // response happens to arrive last.
+  const wantedConversationRef = useRef<string | null>(null)
 
-  const selectConversation = useCallback(async (conversationId: string) => {
-    const requestId = ++selectRequestRef.current
-    try {
-      const response = await agentApi.getConversation(conversationId)
-      if (requestId !== selectRequestRef.current) return
-      if (response.code !== 0 || !response.data) return
-      setActive(response.data)
-      localStorage.setItem(ACTIVE_CONVERSATION_KEY, conversationId)
-      setDrawerOpen(false)
-    } catch (error) {
-      console.error("加载会话失败", error)
-    }
-  }, [])
+  const selectConversation = useCallback(
+    async (conversationId: string, source: "user" | "initial" = "user") => {
+      if (source === "user") {
+        wantedConversationRef.current = conversationId
+      } else {
+        // The initial selection only fills the slot when it is still empty; a
+        // user action always takes precedence.
+        if (wantedConversationRef.current) return
+        wantedConversationRef.current = conversationId
+      }
+      try {
+        const response = await agentApi.getConversation(conversationId)
+        if (wantedConversationRef.current !== conversationId) return
+        if (response.code !== 0 || !response.data) return
+        setActive(response.data)
+        localStorage.setItem(ACTIVE_CONVERSATION_KEY, conversationId)
+        setDrawerOpen(false)
+      } catch (error) {
+        console.error("加载会话失败", error)
+      }
+    },
+    [],
+  )
 
-  const createConversation = useCallback(async () => {
-    const response = await agentApi.createConversation()
-    if (response.code !== 0) return
-    setConversations((current) => [response.data, ...current])
-    await selectConversation(response.data.conversation_id)
-  }, [selectConversation])
+  const createConversation = useCallback(
+    async (source: "user" | "initial" = "user") => {
+      const response = await agentApi.createConversation()
+      if (response.code !== 0) return
+      setConversations((current) => [response.data, ...current])
+      await selectConversation(response.data.conversation_id, source)
+    },
+    [selectConversation],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -167,8 +183,8 @@ export default function Assistant() {
         setConversations(items)
         const savedId = localStorage.getItem(ACTIVE_CONVERSATION_KEY)
         const selected = items.find((item) => item.conversation_id === savedId) || items[0]
-        if (selected) await selectConversation(selected.conversation_id)
-        else await createConversation()
+        if (selected) await selectConversation(selected.conversation_id, "initial")
+        else await createConversation("initial")
       } finally {
         if (!cancelled) setLoading(false)
       }

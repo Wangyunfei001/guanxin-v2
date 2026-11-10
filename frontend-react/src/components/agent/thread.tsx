@@ -52,12 +52,15 @@ function Markdown({ text }: { text: string }) {
   return <div className="prose prose-sm max-w-none break-words dark:prose-invert [&_pre]:overflow-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3 [&_table]:block [&_table]:overflow-auto [&_a]:text-primary"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>
 }
 
+let threadMountCount = 0
+
 export function AgentThread(props: { conversationId: string; history: HistoricalMessage[] }) {
   const [revision, setRevision] = useState(0)
   return <NativeThread key={`${props.conversationId}:${revision}`} {...props} refresh={() => setRevision((value) => value + 1)} />
 }
 
 function NativeThread({ conversationId, history, refresh }: { conversationId: string; history: HistoricalMessage[]; refresh: () => void }) {
+  const mountId = useMemo(() => ++threadMountCount, [])
   const transport = useMemo(() => new HttpAgentServerAdapter({
     apiUrl: typeof window === "undefined" ? "http://localhost/api/agent" : `${window.location.origin}/api/agent`,
     threadId: conversationId,
@@ -79,7 +82,8 @@ function NativeThread({ conversationId, history, refresh }: { conversationId: st
   const viewport = useRef<HTMLDivElement>(null)
   const sticky = useRef(true)
   const running = stream.isLoading || stream.values.run_status === "running"
-  const disabled = running || stream.isThreadLoading || workflowActive
+  const threadLoading = stream.isThreadLoading
+  const disabled = running || threadLoading || workflowActive
   useEffect(() => {
     if (sticky.current) viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: "instant" })
   }, [stream.messages, stream.values.workflow])
@@ -200,7 +204,17 @@ function NativeThread({ conversationId, history, refresh }: { conversationId: st
       </div>
     </div>
     <form className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-5" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-      <div data-slot="agent-composer" className="rounded-[18px] border bg-card p-3 shadow-panel">
+      <div
+        data-slot="agent-composer"
+        // Diagnostic hooks: when the composer is disabled, these say which of
+        // the three causes it is, instead of leaving browser tests to guess.
+        data-conversation-id={conversationId}
+        data-mount-id={mountId}
+        data-running={String(running)}
+        data-thread-loading={String(threadLoading)}
+        data-workflow-active={String(workflowActive)}
+        className="rounded-[18px] border bg-card p-3 shadow-panel"
+      >
         <textarea aria-label="输入消息" placeholder={workflowActive ? "请先处理或取消当前工作流" : "描述任务，或直接问一个问题"} className="min-h-16 w-full resize-none bg-transparent p-2 text-sm outline-none disabled:opacity-50" value={draft} disabled={disabled} onChange={(event) => { setDraft(event.target.value); event.target.style.height = "auto"; event.target.style.height = `${Math.min(event.target.scrollHeight, 176)}px` }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit() } }} />
         {attachment && <div className="mb-2 flex items-center gap-2 text-xs"><span>{attachment.name}</span><Button type="button" variant="ghost" size="icon" aria-label="移除附件" disabled={disabled} onClick={() => setAttachment(null)}><X size={14} /></Button></div>}
         <input ref={fileInput} type="file" className="hidden" accept=".txt,.md,.csv,.json,.log" onChange={async (event) => {

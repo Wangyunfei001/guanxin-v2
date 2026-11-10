@@ -244,7 +244,7 @@ risk = "write" if metadata.effect == "write" else "read"
 
 ### B7 · 移除正则意图旁路
 
-**问题**：`app/workflows/intent.py:40-45` 的匹配式无问句守卫，实测：
+**问题**：`app/workflows/intent.py` 的匹配式无问句守卫，实测：
 
 ```
 '如何删除用户'         -> 'single_delete'
@@ -268,6 +268,8 @@ risk = "write" if metadata.effect == "write" else "read"
 **e2e 与 CI 调整**：原工作流浏览器用例依赖旁路（CI 不配 LLM Key 也能跑通）。移除旁路后，用例改为在**确定性模型 fixture** 下运行——fixture 让模型真的发出 `request_business_workflow` 工具调用，因此覆盖的是完整的 agent → 工具 → 审批链路，而不是绕过模型。CI 相应把该用例并入 fixture 那一轮。
 
 **改动点**：`app/agent/thread_service.py`、`app/workflows/intent.py`、`app/workflows/planner.py`、`app/agent/deep_agent.py`、`backend/tests/native_app.py`、`frontend-react/e2e/workflow.spec.ts`、`.github/workflows/ci.yml`
+
+**实施中发现的另一个缺陷（同一处）**：初始化 effect 的会话选择可能**晚于**用户的显式操作到达，于是覆盖用户刚新建的会话——线程组件按会话 id 作 key，被换掉就重挂载，用户刚打的字凭空消失，发送按钮保持禁用。这不是测试脆弱，是真实的可用性缺陷。修法是让「用户想要的会话」成为唯一权威：只有用户动作能设置它，初始选择只在它为空时填充，响应只在仍是目标会话时才生效。
 
 **验证**：新增断言——问句不产生 `workflow_runs` 记录；祈使句经模型产生记录。
 
@@ -480,6 +482,7 @@ type ApiClient = {
 3. **HTTP 状态码两套约定并存**：认证失败用 `200 + {"code": 4011}`，业务错误用真 `401/403/404/409`。前端 26 处依赖 `code === 0`；改真 401 会触发 axios 拦截器跳登录页。**保持现状，在 `docs/specs/modules/platform-core.md` 写明这是有意约定**，并同步启用 `app/core/exceptions.py` 的异常族（统一新增错误的表达方式），不再让下一个人误以为是疏漏。
 4. **MCP Server 配置不跨重启保留**（进程内存储）。B2 修的是跨租户越权，持久化是独立收益项。
 5. **API Key / JWT 无法吊销轮换**。演示级验收下接受。
+6. **编辑器草稿随会话切换丢失**。`AgentThread` 以会话 id 为 key，切换或新建会话会重建线程组件，正在输入的内容随之消失。浏览器用例已通过等待编辑器稳定来规避，但产品侧尚未把草稿状态移出会话级组件。
 
 ---
 
