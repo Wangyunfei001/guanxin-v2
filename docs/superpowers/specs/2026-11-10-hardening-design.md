@@ -184,17 +184,18 @@ class MCPServerManager:
 
 ### B5 · 工作流与 Agent 共用同一份工具目录构建器
 
-**问题**：Agent 链路（`app/agent/tool_catalog.py:201-212`）查 `mcp_tool_policies`，`enabled=False` 会跳过；工作流链路（`app/workflows/catalog.py:88-101`）**不查**，直接把所有 `get_tool_definitions()` 收进来。实测策略置 `enabled=False` 后，Agent 目录 `['kb_retrieval']`，工作流目录仍是 `['kb_retrieval', 'mcp__weather__get_weather']`。
+**问题**：Agent 链路（`app/agent/tool_catalog.py`）查 `mcp_tool_policies`，`enabled=False` 会跳过；工作流链路（`app/workflows/catalog.py`）**不查**，直接把所有 `get_tool_definitions()` 收进来。实测策略置 `enabled=False` 后，Agent 目录 `['kb_retrieval']`，工作流目录仍是 `['kb_retrieval', 'mcp__weather__get_weather']`。
 
-而 `app/api/langchain.py:184-189` 的放行判断用的正是**工作流**目录 —— 管理员亲手关掉的开关，对唯一需要人工审批的路径是空操作。
+而 `app/api/langchain.py` 的放行判断用的正是**工作流**目录 —— 管理员亲手关掉的开关，对唯一需要人工审批的路径是空操作。
 
-**方案**：把 `app/agent/tool_catalog.py::build_tool_catalog` 提为唯一实现，`app/workflows/catalog.py` 改为调用它，不再自建目录。
+**方案**：可见性与风险等级只有一份实现——`app.agent.tool_catalog.discover_tool_specs`。Agent 目录与工作流目录都从它派生：
 
 - 两边统一按 `mcp_tool_policies` 过滤 `enabled`
 - `effect` → `risk` 映射统一：`read` → `read`，`write` → `write`，其余 → `unknown`
 - `app/workflows/catalog.py::execute_tool` 在 `mcp__` 分支**再查一次** `enabled`（纵深防御）
+- `kb_retrieval` 是唯一例外：工作流侧额外暴露 `top_k`，与 Agent 侧的工具签名本就不同，各自构造
 
-**改动点**：`app/agent/tool_catalog.py`、`app/workflows/catalog.py`、`app/api/langchain.py`
+**改动点**：`app/agent/tool_catalog.py`、`app/workflows/catalog.py`
 
 **验证**：新增断言——策略 `enabled=False` 后，Agent 目录与工作流目录**都不含**该工具；工作流执行被拒。
 
@@ -251,14 +252,18 @@ risk = "write" if metadata.effect == "write" else "read"
 
 **方案**（决策 D3：移除旁路，只走工具）：
 
-- `thread_service._execute` 删除 `detect_workflow_intent` 分支，不再有「无模型直起工作流」的路径
-- 写操作统一经 `request_business_workflow` 工具发起 —— **该工具已存在**（`app/agent/deep_agent.py:156` 的 prompt 里已声明），入口无需新建
-- `app/workflows/intent.py` 降级为纯 UI 提示信号（如「检测到可能的删除操作」），**不再决定是否起工作流**；若确认无其他消费者则整体删除
-- `deep_agent.py` 的 prompt 明确：问句只回答不动手；祈使句走 `request_business_workflow`
+- `thread_service._execute` 删除 `detect_workflow_intent` 分支，不再有「无模型直起工作流」的路径；Agent 运行一律先过模型
+- 写操作统一经 `request_business_workflow` 工具发起 —— **该工具已存在**（`app/agent/deep_agent.py` 的 prompt 里已声明），入口无需新建
+- 问句守卫下沉到**意图分类层**（`app/workflows/intent.py::looks_like_question` + `planner.py::detect_workflow_intent`）：问句一律不产生变更类意图。这个判定保护所有入口——Agent 工具、工作流引擎与外部调用方
+- `deep_agent.py` 的 prompt 明确：问句只解释流程与所需参数，不发起变更审批
+
+**为什么把问句守卫放在分类层而不是只删旁路**：意图分类器仍被 `request_business_workflow` 用来选择计划形态（确定性单步 vs LLM 规划）。如果只删旁路而不加守卫，模型把「如何删除用户」当作 goal 传进工具时，确定性计划仍会指向 `skill__delete_user`。
 
 **行为变化（需在 demo 手册中体现）**：「如何删除用户」现在会得到解释性回答，而不是一张删除审批卡；「删除用户 user42」仍会经模型规划后进入审批。
 
-**改动点**：`app/agent/thread_service.py`、`app/workflows/intent.py`、`app/agent/deep_agent.py`、`app/agent/prompts.py`
+**e2e 与 CI 调整**：原工作流浏览器用例依赖旁路（CI 不配 LLM Key 也能跑通）。移除旁路后，用例改为在**确定性模型 fixture** 下运行——fixture 让模型真的发出 `request_business_workflow` 工具调用，因此覆盖的是完整的 agent → 工具 → 审批链路，而不是绕过模型。CI 相应把该用例并入 fixture 那一轮。
+
+**改动点**：`app/agent/thread_service.py`、`app/workflows/intent.py`、`app/workflows/planner.py`、`app/agent/deep_agent.py`、`backend/tests/native_app.py`、`frontend-react/e2e/workflow.spec.ts`、`.github/workflows/ci.yml`
 
 **验证**：新增断言——问句不产生 `workflow_runs` 记录；祈使句经模型产生记录。
 

@@ -1,5 +1,49 @@
-"""Existing deterministic business workflow triggers (not Agent routing)."""
+"""Deterministic business workflow triggers.
+
+这里的正则只用于**选择计划形态**（确定性单步 vs LLM 规划），不再决定
+「要不要发起工作流」——发起工作流只有两个入口：Agent 的
+``request_business_workflow`` 工具，和工作流引擎本身。
+"""
+
 import re
+
+# 问句标记：命中则说明用户在问「怎么做」，而不是「帮我做」。
+# 问句绝不产生变更类意图，避免「如何删除用户」被路由成删除工作流。
+QUESTION_MARKERS: tuple[str, ...] = (
+    "什么",
+    "如何",
+    "怎么",
+    "怎样",
+    "为什么",
+    "为何",
+    "是什么",
+    "什么是",
+    "啥是",
+    "能不能",
+    "能否",
+    "可不可以",
+    "是否",
+    "请问",
+    "介绍",
+    "解释",
+    "说明一下",
+    "有哪些",
+    "吗",
+    "呢",
+    "？",
+    "?",
+)
+
+
+def looks_like_question(text: str) -> bool:
+    """判断文本是否是问句而不是祈使请求。"""
+    stripped = text.strip()
+    if not stripped:
+        return False
+    if stripped.endswith(("？", "?")):
+        return True
+    return any(marker in stripped for marker in QUESTION_MARKERS)
+
 
 INTENT_REGEX_RULES: list[tuple[str, str, dict | None]] = [
     # --- 第 -1 层：确认/取消协议消息（最高优先级，防止 LLM 误分类）---

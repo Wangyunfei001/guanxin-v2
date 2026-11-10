@@ -154,6 +154,7 @@ read_source 返回 retryable=false 时不要重复读取同一 URL。
 搜索预算按会话累计，恢复不重置；预算错误时停止搜索，用已有证据说明缺口。
 文件系统是此会话专用的虚拟工作区；没有宿主 shell。不要虚构工具执行、来源或文件。
 当前执行器仅允许只读业务工具。若提供 request_business_workflow，用户要求修改业务数据时调用它建立审批，然后结束回复等待用户处理；否则说明当前没有对应权限。
+用户只是询问操作方法（例如「如何删除用户」「怎么创建一个用户」）时，只解释流程和所需参数，不要调用 request_business_workflow；只有用户明确要求执行变更时才调用。
 """
     # StateBackend is a checkpoint-backed virtual filesystem, never host disk.
     backend = StateBackend()

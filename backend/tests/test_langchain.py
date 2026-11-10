@@ -15,6 +15,22 @@ class ScriptedModel(FakeMessagesListChatModel):
         return self
 
 
+def workflow_request_model(goal: str):
+    """A scripted model that requests a business workflow through the real agent tool.
+
+    写操作只能由 Agent 调 ``request_business_workflow`` 发起，没有旁路。
+    """
+    return ScriptedModel(responses=[
+        AIMessage(content="", tool_calls=[{
+            "name": "request_business_workflow",
+            "args": {"goal": goal},
+            "id": "workflow-request",
+        }]),
+        AIMessage(content="已发起变更审批，请在审批卡片中处理。"),
+        AIMessage(content="已发起变更审批，请在审批卡片中处理。"),
+    ])
+
+
 def new_thread(client, headers):
     return client.post("/api/agent/conversations", headers=headers, json={}).json()["data"]["conversation_id"]
 

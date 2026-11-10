@@ -28,9 +28,13 @@ parent: architecture
 
 **认证**：JWT（HS256，载荷含 `sub` 与 `tenant_id`）或 `X-API-Key` 二选一。预设账号在启动时幂等初始化，密码用 bcrypt（截断到 72 字节）。管理端点叠加 `get_admin_user`。
 
+**签名密钥**：按 `SECRET_KEY` 环境变量 → `<数据目录>/.secret_key` → 随机生成（0600 原子写）的顺序解析，进程内缓存保证同一进程始终用同一把。仓库里不携带任何可被公开利用的固定密钥——内置历史默认值一律视为「未配置」，在**任何**环境都不会被真正用于签名。非 development / test 环境下，若仍配置为内置默认值或密钥短于 32 字符，lifespan 拒绝启动。
+
 **越权语义**：跨租户或跨用户的对象一律返回 404（不泄露存在性）；角色不足返回 403。
 
 **响应契约**：普通业务端点统一 `{code, message, data}`；Agent 线程协议端点返回官方 SDK 要求的形状（`values` / `next` / 事件流），不使用 envelope。
+
+**HTTP 状态码约定**（有意为之，不是疏漏）：认证失败返回 `200 + {code: 4011}`，其余业务错误使用真实的 `401 / 403 / 404 / 409 / 413 / 422`。前端统一按 `code` 判定成功与否，不按 HTTP 状态码。
 
 **可观测性**：`RequestContextMiddleware` 为每个请求打 `X-Request-ID` 与 `X-Response-Time`。
 
@@ -41,3 +45,4 @@ parent: architecture
 - 账号与 API Key 是进程内预设数据，重启后需重新获取；`backend/data/users.json` 是管理型 Skill 的业务记录，不是登录来源。
 - 单进程 Uvicorn 是设计前提，不提供多 worker 调度或分布式锁。
 - `settings.agent_mode` 已无消费方（后端自报 `deepagents`），属遗留配置。
+- MCP Server 配置同样是进程内数据，重启后需重新注册。

@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test"
 
 import { login } from "./helpers"
 
+test.skip(!process.env.GUANXIN_E2E_AGENT_FIXTURE, "Requires deterministic native model test entrypoint")
+
 test("persistent workflow collects input, executes approval and survives refresh", async ({ page }) => {
   await login(page)
 
@@ -76,7 +78,9 @@ test("persistent workflow collects input, executes approval and survives refresh
     const workflowTrack = page.getByText("执行轨迹", { exact: true })
     await expect(workflowTrack).toHaveCount(1)
     await expect(page.getByText("1 tool call", { exact: true })).toHaveCount(0)
-    await expect(page.getByText("补充参数：创建用户")).toBeVisible()
+    // The agent really called request_business_workflow, so the tool call and
+    // its result are part of the transcript — match the workflow card title.
+    await expect(page.getByText("补充参数：创建用户", { exact: true })).toBeVisible()
     await expect(composer).toBeDisabled()
     await expect(sendButton).toBeDisabled()
     await expect(attachmentButton).toBeDisabled()
@@ -88,7 +92,7 @@ test("persistent workflow collects input, executes approval and survives refresh
 
     await expect(workflowTrack).toHaveCount(1)
     await expect(page.getByText("1 tool call", { exact: true })).toHaveCount(0)
-    await expect(page.getByText("确认执行：创建用户")).toBeVisible()
+    await expect(page.getByText("确认执行：创建用户", { exact: true })).toBeVisible()
     await expect(page.getByText("响应已提交，工作流正在继续。")).toHaveCount(0)
     await page.getByRole("button", { name: "批准执行" }).click()
     await expect(workflowTrack).toHaveCount(1)

@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.agent.llm import _create_llm
-from app.workflows.intent import _regex_classify
+from app.workflows.intent import _regex_classify, looks_like_question
 from app.models.agent import AgentConfig
 from app.workflows.catalog import WorkflowToolError, normalize_arguments
 from app.workflows.models import WorkflowPlan, WorkflowPlanStep, WorkflowTool
@@ -27,7 +27,13 @@ class WorkflowPlannerError(RuntimeError):
 
 
 def detect_workflow_intent(text: str) -> str:
-    """Return only explicit mutating intents that require a durable workflow."""
+    """Return only explicit mutating intents that require a durable workflow.
+
+    问句直接返回空：「如何删除用户」是在问流程，不是在要求执行删除。
+    这个判定保护所有入口——Agent 工具、工作流引擎与外部调用方。
+    """
+    if looks_like_question(text):
+        return ""
     classified = _regex_classify(text)
     if classified and classified[0] in WORKFLOW_INTENTS:
         return classified[0]
