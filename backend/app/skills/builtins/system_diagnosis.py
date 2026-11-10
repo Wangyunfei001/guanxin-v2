@@ -22,6 +22,7 @@ class SystemDiagnosisSkill(BaseSkill):
             name="system_diagnosis",
             display_name="系统诊断",
             description="对系统进行健康检查，返回CPU、内存、磁盘、数据库状态和用户统计信息。",
+            effect="read",
             skill_type=SkillType.BUILTIN,
             params=[
                 SkillParam(name="check_type", type="string", description="检查类型", required=False, default="full", options=["basic", "full", "database", "cache"]),

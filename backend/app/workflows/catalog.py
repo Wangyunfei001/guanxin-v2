@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from app.agent.tool_catalog import discover_tool_specs
 from app.models.agent import AgentConfig
 from app.models.skill_context import SkillContext
 from app.services.retrieval_service import get_retrieval_service
@@ -37,6 +38,15 @@ def _json_schema_parameters(schema: dict[str, Any]) -> list[ToolParameter]:
 
 
 def build_tool_catalog(config: AgentConfig, user_role: str) -> list[WorkflowTool]:
+    """工作流工具目录。
+
+    可见性与风险等级来自 :func:`app.agent.tool_catalog.discover_tool_specs`
+    ——与 Agent 目录共用同一份判定，因此 MCP 禁用开关与风险分级不可能在
+    两条路径上漂移。
+
+    ``kb_retrieval`` 在这里单独构造：工作流侧额外暴露 ``top_k``，与
+    Agent 侧的工具签名本就不同。
+    """
     tools: list[WorkflowTool] = []
     if "kb_retrieval" in config.enabled_tools:
         tools.append(
@@ -64,39 +74,18 @@ def build_tool_catalog(config: AgentConfig, user_role: str) -> list[WorkflowTool
             )
         )
 
-    registry = get_skill_registry()
-    registry.register_all()
-    for skill_name in config.enabled_skills:
-        skill = registry.get_skill(skill_name)
-        if skill is None:
-            continue
-        if user_role != "admin" and skill_name in ADMIN_ONLY_SKILLS:
-            continue
-        metadata = skill.metadata
+    for spec in discover_tool_specs(
+        config, tenant_id=config.tenant_id, user_role=user_role
+    ):
         tools.append(
             WorkflowTool(
-                name=f"skill__{skill_name}",
-                display_name=metadata.display_name,
-                description=metadata.description,
-                category="skill",
-                risk="write" if metadata.effect == "write" else "read",
-                parameters=[ToolParameter.model_validate(item.to_dict()) for item in metadata.params],
-            )
-        )
-
-    from app.mcp.client import get_mcp_client
-
-    for definition in get_mcp_client().get_tool_definitions(config.tenant_id):
-        if definition["server_name"] not in config.mcp_servers:
-            continue
-        tools.append(
-            WorkflowTool(
-                name=definition["full_name"],
-                display_name=definition["tool_name"],
-                description=definition.get("description", ""),
-                category="mcp",
-                risk="unknown",
-                parameters=_json_schema_parameters(definition.get("input_schema", {})),
+                name=spec.name,
+                display_name=spec.display_name,
+                description=spec.description,
+                category=spec.source_type,
+                # fail-closed：只声明为 read 的工具才允许免审批执行。
+                risk=spec.effect,
+                parameters=_json_schema_parameters(spec.input_schema),
             )
         )
     return tools
@@ -234,6 +223,15 @@ async def execute_tool(
     if tool.name.startswith("mcp__"):
         _, server_name, tool_name = tool.name.split("__", 2)
         from app.mcp.client import get_mcp_client
+        from app.services.mcp_policy_store import get_mcp_tool_policy_store
+
+        # 纵深防御：执行前再查一次禁用开关，目录构建之后被禁用的工具
+        # 也不能执行。
+        policy = get_mcp_tool_policy_store().get(
+            context.tenant_id, server_name, tool_name
+        )
+        if policy is None or not policy.get("enabled", True):
+            raise PermissionError("该 MCP 工具已被当前租户禁用")
 
         result = await get_mcp_client().call_tool(
             context.tenant_id, server_name, tool_name, arguments

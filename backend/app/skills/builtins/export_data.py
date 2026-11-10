@@ -18,6 +18,7 @@ class ExportDataSkill(BaseSkill):
             name="export_data",
             display_name="导出数据",
             description="将系统中的用户数据导出为指定格式的文件。",
+            effect="read",
             skill_type=SkillType.BUILTIN,
             params=[
                 SkillParam(name="data_type", type="string", description="数据类型", required=True, options=["users", "logs", "reports"]),

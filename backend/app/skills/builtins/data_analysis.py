@@ -17,6 +17,7 @@ class DataAnalysisSkill(BaseSkill):
             name="data_analysis",
             display_name="数据分析",
             description="对输入的数值数组进行基本统计分析，包括均值、中位数、最大值、最小值、标准差等。",
+            effect="read",
             skill_type=SkillType.BUILTIN,
             params=[
                 SkillParam(

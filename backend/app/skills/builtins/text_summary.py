@@ -17,6 +17,7 @@ class TextSummarySkill(BaseSkill):
             name="text_summary",
             display_name="文本摘要",
             description="对输入文本进行摘要，提取关键句子和关键词。",
+            effect="read",
             skill_type=SkillType.BUILTIN,
             params=[
                 SkillParam(

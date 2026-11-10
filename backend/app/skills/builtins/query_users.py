@@ -14,6 +14,7 @@ class QueryUsersSkill(BaseSkill):
             name="query_users",
             display_name="查询用户列表",
             description="查询系统中的用户列表，支持关键词搜索、角色筛选和分页。",
+            effect="read",
             skill_type=SkillType.BUILTIN,
             params=[
                 SkillParam(name="keyword", type="string", description="搜索关键词（匹配用户名或邮箱）", required=False),

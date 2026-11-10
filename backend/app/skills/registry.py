@@ -5,10 +5,14 @@
 
 import importlib
 import inspect
+import logging
 import pkgutil
 from typing import Dict, List, Optional
 
+from app.models.skill import VALID_SKILL_EFFECTS
 from app.skills.base import BaseSkill
+
+logger = logging.getLogger(__name__)
 
 
 class SkillRegistry:
@@ -19,7 +23,19 @@ class SkillRegistry:
         self._initialized: bool = False
 
     def register(self, skill: BaseSkill) -> None:
-        """注册技能。"""
+        """注册技能。
+
+        effect 非法的技能会被拒绝——副作用等级必须在注册时就确定，
+        不能等到执行时才猜。
+        """
+        effect = getattr(skill.metadata, "effect", None)
+        if effect not in VALID_SKILL_EFFECTS:
+            logger.error(
+                "技能 %s 的 effect 非法（%r），已拒绝注册；只允许 read / write / unknown",
+                getattr(skill.metadata, "name", skill.__class__.__name__),
+                effect,
+            )
+            return
         self._skills[skill.name] = skill
 
     def unregister(self, name: str) -> bool:
@@ -42,7 +58,11 @@ class SkillRegistry:
         return [s.metadata.to_dict() for s in self._skills.values()]
 
     def register_all(self) -> None:
-        """自动扫描并注册所有内置技能。"""
+        """自动扫描并注册所有内置技能。
+
+        注册失败的技能会被记录并跳过，而不是静默消失——一个坏掉的
+        Skill 不应该让目录里“凭空少一项能力”且没有线索。
+        """
         if self._initialized:
             return
 
@@ -64,13 +84,16 @@ class SkillRegistry:
                         ):
                             try:
                                 instance = obj()
-                                self.register(instance)
                             except Exception:
-                                pass
+                                logger.exception(
+                                    "内置技能 %s 实例化失败，已跳过注册", obj.__name__
+                                )
+                                continue
+                            self.register(instance)
                 except Exception:
-                    pass
+                    logger.exception("加载内置技能模块 %s 失败", modname)
         except Exception:
-            pass
+            logger.exception("扫描内置技能目录失败")
 
         self._initialized = True
 
