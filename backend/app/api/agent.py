@@ -66,7 +66,7 @@ async def _config_response(
 
     from app.mcp.server import get_mcp_server_manager
 
-    servers = get_mcp_server_manager().list_servers()
+    servers = get_mcp_server_manager().list_servers(config.tenant_id)
     from app.agent.tool_catalog import build_tool_catalog, serialize_tool_specs
 
     catalog = await build_tool_catalog(
@@ -265,7 +265,10 @@ async def update_agent_config(
 
     from app.mcp.server import get_mcp_server_manager
 
-    server_names = {item["name"] for item in get_mcp_server_manager().list_servers()}
+    server_names = {
+        item["name"]
+        for item in get_mcp_server_manager().list_servers(user.tenant_id)
+    }
     if not set(request.mcp_servers).issubset(server_names):
         raise HTTPException(status_code=422, detail="包含未知 MCP Server")
 

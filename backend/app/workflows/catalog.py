@@ -86,7 +86,7 @@ def build_tool_catalog(config: AgentConfig, user_role: str) -> list[WorkflowTool
 
     from app.mcp.client import get_mcp_client
 
-    for definition in get_mcp_client().get_tool_definitions():
+    for definition in get_mcp_client().get_tool_definitions(config.tenant_id):
         if definition["server_name"] not in config.mcp_servers:
             continue
         tools.append(
@@ -235,7 +235,9 @@ async def execute_tool(
         _, server_name, tool_name = tool.name.split("__", 2)
         from app.mcp.client import get_mcp_client
 
-        result = await get_mcp_client().call_tool(server_name, tool_name, arguments)
+        result = await get_mcp_client().call_tool(
+            context.tenant_id, server_name, tool_name, arguments
+        )
         if not result.get("success") or result.get("is_error"):
             raise WorkflowToolError(result.get("error") or "MCP 工具执行失败")
         return result

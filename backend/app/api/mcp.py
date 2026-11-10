@@ -19,19 +19,38 @@ from app.services.mcp_policy_store import get_mcp_tool_policy_store
 router = APIRouter(prefix="/mcp", tags=["MCP"])
 
 
+def _public_server(server: dict, *, is_admin: bool) -> dict:
+    """构造对外可见的 Server 描述。
+
+    ``env`` 的值永远不外泄——它只用于 spawn 子进程。管理员只能看到环境
+    变量名列表；非管理员连命令行都看不到，避免泄露后端解释器路径。
+    """
+    visible = {
+        "name": server["name"],
+        "description": server.get("description", ""),
+        "status": server.get("status", "registered"),
+        "registered": True,
+    }
+    if is_admin:
+        visible["command"] = server.get("command", "")
+        visible["args"] = list(server.get("args", []))
+        visible["env_keys"] = sorted(server.get("env", {}).keys())
+    return visible
+
+
 @router.get("/servers")
 async def list_servers(user: User = Depends(get_current_user)):
-    """列出所有 MCP Server 配置。"""
+    """列出当前租户的 MCP Server 配置。"""
     manager = get_mcp_server_manager()
     client = get_mcp_client()
     config = get_agent_config_store().get_or_create_default(user.tenant_id)
+    is_admin = user.role == "admin"
     servers = []
-    for server in manager.list_servers():
-        connection = client.get_connection(server["name"])
+    for server in manager.list_servers(user.tenant_id):
+        connection = client.get_connection(user.tenant_id, server["name"])
         servers.append(
             {
-                **server,
-                "registered": True,
+                **_public_server(server, is_admin=is_admin),
                 "runtime_status": (
                     connection.get("status", "disconnected")
                     if connection
@@ -58,16 +77,17 @@ async def register_server(
     request: RegisterServerRequest,
     user: User = Depends(get_admin_user),
 ):
-    """注册 MCP Server。"""
+    """注册 MCP Server（仅影响当前租户）。"""
     manager = get_mcp_server_manager()
     config = manager.register_server(
+        tenant_id=user.tenant_id,
         name=request.name,
         command=request.command,
         args=request.args,
         env=request.env,
         description=request.description,
     )
-    return success(config)
+    return success(_public_server(config, is_admin=True))
 
 
 @router.delete("/servers/{server_name}")
@@ -75,12 +95,12 @@ async def unregister_server(
     server_name: str,
     user: User = Depends(get_admin_user),
 ):
-    """注销 MCP Server。"""
+    """注销当前租户的 MCP Server。"""
     manager = get_mcp_server_manager()
-    deleted = manager.unregister_server(server_name)
+    deleted = manager.unregister_server(user.tenant_id, server_name)
     if not deleted:
         return {"code": 4041, "message": "服务器未找到", "data": None}
-    get_mcp_client().disconnect(server_name)
+    get_mcp_client().disconnect(user.tenant_id, server_name)
     agent_store = get_agent_config_store()
     config = agent_store.get_or_create_default(user.tenant_id)
     if server_name in config.mcp_servers:
@@ -103,12 +123,13 @@ async def connect_server(
 ):
     """连接到 MCP Server。"""
     manager = get_mcp_server_manager()
-    config = manager.get_server(request.server_name)
+    config = manager.get_server(user.tenant_id, request.server_name)
     if config is None:
         return {"code": 4041, "message": "服务器配置未找到", "data": None}
 
     client = get_mcp_client()
     result = await client.connect(
+        tenant_id=user.tenant_id,
         server_name=config["name"],
         command=config["command"],
         args=config["args"],
@@ -146,7 +167,7 @@ async def list_connections(user: User = Depends(get_current_user)):
     policy_store = get_mcp_tool_policy_store()
     config = get_agent_config_store().get_or_create_default(user.tenant_id)
     connections = []
-    for connection in client.list_connections():
+    for connection in client.list_connections(user.tenant_id):
         tools = []
         for tool in connection.get("tools", []):
             policy = policy_store.get(
@@ -179,7 +200,7 @@ async def update_tool_policy(
     """Classify a discovered MCP tool for the current tenant."""
     if request.effect not in {"read", "write", "unknown"}:
         raise HTTPException(status_code=422, detail="effect 必须是 read、write 或 unknown")
-    connection = get_mcp_client().get_connection(server_name)
+    connection = get_mcp_client().get_connection(user.tenant_id, server_name)
     if connection is None or not any(
         item.get("name") == tool_name for item in connection.get("tools", [])
     ):
@@ -213,7 +234,7 @@ async def call_tool(
     config = get_agent_config_store().get_or_create_default(user.tenant_id)
     if request.server_name not in config.mcp_servers:
         raise HTTPException(status_code=403, detail="当前 Agent 未启用该 MCP Server")
-    available = await client.ensure_available(request.server_name)
+    available = await client.ensure_available(user.tenant_id, request.server_name)
     if available.get("status") != "connected":
         raise HTTPException(status_code=503, detail="MCP Server 当前不可用")
     policy = get_mcp_tool_policy_store().get(
@@ -229,6 +250,7 @@ async def call_tool(
     ):
         raise HTTPException(status_code=403, detail="该工具不是已授权的只读能力")
     result = await client.call_tool(
+        tenant_id=user.tenant_id,
         server_name=request.server_name,
         tool_name=request.tool_name,
         arguments=request.arguments,

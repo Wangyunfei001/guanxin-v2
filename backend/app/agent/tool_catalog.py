@@ -100,7 +100,7 @@ def _skill_tool(skill: Any, context: SkillContext) -> BaseTool:
     )
 
 
-def _mcp_tool(server_name: str, definition: dict[str, Any]) -> BaseTool:
+def _mcp_tool(tenant_id: str, server_name: str, definition: dict[str, Any]) -> BaseTool:
     schema = definition.get("input_schema") or {"type": "object", "properties": {}}
     args_model = _model_from_properties(
         f"MCP{server_name.title()}{definition['tool_name'].title().replace('_', '')}Args",
@@ -112,6 +112,7 @@ def _mcp_tool(server_name: str, definition: dict[str, Any]) -> BaseTool:
         from app.mcp.client import get_mcp_client
 
         return await get_mcp_client().call_tool(
+            tenant_id,
             server_name,
             definition["tool_name"],
             kwargs,
@@ -191,10 +192,10 @@ async def build_tool_catalog(
     mcp_client = get_mcp_client()
     if ensure_mcp:
         for server_name in config.mcp_servers:
-            await mcp_client.ensure_available(server_name)
+            await mcp_client.ensure_available(tenant_id, server_name)
 
     policy_store = get_mcp_tool_policy_store()
-    for definition in mcp_client.get_tool_definitions():
+    for definition in mcp_client.get_tool_definitions(tenant_id):
         server_name = definition["server_name"]
         if server_name not in config.mcp_servers:
             continue
@@ -227,7 +228,7 @@ async def build_tool_catalog(
                     effect=effect if effect in {"read", "write", "unknown"} else "unknown",
                     approval_required=bool(policy.get("approval_required", True)),
                 ),
-                tool=_mcp_tool(server_name, definition),
+                tool=_mcp_tool(tenant_id, server_name, definition),
             )
         )
 

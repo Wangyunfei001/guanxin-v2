@@ -1,20 +1,27 @@
 """MCP 客户端模块。
 
 负责与外部 MCP Server 建立连接、调用工具。
+
+连接缓存按租户隔离：不同租户可以有同名但不同命令行的 MCP Server，
+互不覆盖。工具定义只对所属租户可见。
 """
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+# (tenant_id, server_name) -> 连接信息
+ConnectionKey = Tuple[str, str]
 
 
 class MCPClient:
     """MCP 客户端：管理与 MCP Server 的连接。"""
 
     def __init__(self) -> None:
-        self._connections: Dict[str, dict] = {}  # key: server_name
+        self._connections: Dict[ConnectionKey, dict] = {}
 
     async def connect(
         self,
+        tenant_id: str,
         server_name: str,
         command: str,
         args: List[str],
@@ -23,6 +30,7 @@ class MCPClient:
         """连接到 MCP Server。
 
         Args:
+            tenant_id: 所属租户
             server_name: 服务器名称
             command: 启动命令（如 python）
             args: 命令参数列表
@@ -66,7 +74,7 @@ class MCPClient:
                             }
                         )
 
-                    self._connections[server_name] = {
+                    self._connections[(tenant_id, server_name)] = {
                         "command": command,
                         "args": args,
                         "env": env,
@@ -93,9 +101,9 @@ class MCPClient:
                 "error": str(e),
             }
 
-    async def ensure_available(self, server_name: str) -> dict:
+    async def ensure_available(self, tenant_id: str, server_name: str) -> dict:
         """Discover a registered server on demand after process restarts."""
-        current = self._connections.get(server_name)
+        current = self._connections.get((tenant_id, server_name))
         if current and current.get("status") == "connected":
             return {
                 "server_name": server_name,
@@ -105,7 +113,7 @@ class MCPClient:
 
         from app.mcp.server import get_mcp_server_manager
 
-        config = get_mcp_server_manager().get_server(server_name)
+        config = get_mcp_server_manager().get_server(tenant_id, server_name)
         if config is None:
             return {
                 "server_name": server_name,
@@ -113,6 +121,7 @@ class MCPClient:
                 "error": "服务器配置未找到",
             }
         return await self.connect(
+            tenant_id=tenant_id,
             server_name=config["name"],
             command=config["command"],
             args=config["args"],
@@ -121,6 +130,7 @@ class MCPClient:
 
     async def call_tool(
         self,
+        tenant_id: str,
         server_name: str,
         tool_name: str,
         arguments: Dict[str, Any],
@@ -128,6 +138,7 @@ class MCPClient:
         """调用 MCP Server 上的工具。
 
         Args:
+            tenant_id: 所属租户
             server_name: 服务器名称
             tool_name: 工具名称
             arguments: 工具参数
@@ -135,15 +146,15 @@ class MCPClient:
         Returns:
             工具调用结果
         """
-        conn = self._connections.get(server_name)
+        conn = self._connections.get((tenant_id, server_name))
         if not conn:
-            ensured = await self.ensure_available(server_name)
+            ensured = await self.ensure_available(tenant_id, server_name)
             if ensured.get("status") != "connected":
                 return {
                     "success": False,
                     "error": ensured.get("error") or f"服务器 {server_name} 未连接",
                 }
-            conn = self._connections.get(server_name)
+            conn = self._connections.get((tenant_id, server_name))
         if not conn:
             return {"success": False, "error": f"服务器 {server_name} 未连接"}
 
@@ -184,8 +195,8 @@ class MCPClient:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def list_connections(self) -> List[dict]:
-        """列出所有连接。"""
+    def list_connections(self, tenant_id: str) -> List[dict]:
+        """列出当前租户的所有连接。"""
         return [
             {
                 "server_name": name,
@@ -194,22 +205,24 @@ class MCPClient:
                 "command": conn["command"],
                 "args": conn["args"],
             }
-            for name, conn in self._connections.items()
+            for (owner, name), conn in self._connections.items()
+            if owner == tenant_id
         ]
 
-    def get_connection(self, server_name: str) -> Optional[dict]:
-        """获取连接信息。"""
-        return self._connections.get(server_name)
+    def get_connection(self, tenant_id: str, server_name: str) -> Optional[dict]:
+        """获取当前租户的连接信息。"""
+        return self._connections.get((tenant_id, server_name))
 
-    def disconnect(self, server_name: str) -> bool:
-        """断开连接。"""
-        if server_name in self._connections:
-            del self._connections[server_name]
+    def disconnect(self, tenant_id: str, server_name: str) -> bool:
+        """断开当前租户的连接。"""
+        key = (tenant_id, server_name)
+        if key in self._connections:
+            del self._connections[key]
             return True
         return False
 
-    def get_tool_definitions(self) -> List[dict]:
-        """获取所有已连接 MCP Server 的工具定义列表。
+    def get_tool_definitions(self, tenant_id: str) -> List[dict]:
+        """获取当前租户已连接 MCP Server 的工具定义列表。
 
         返回格式适配 LangChain tool 注册，每个工具包含：
         - server_name: 所属 MCP Server 名称
@@ -219,7 +232,9 @@ class MCPClient:
         - input_schema: 输入参数 schema
         """
         definitions = []
-        for server_name, conn in self._connections.items():
+        for (owner, server_name), conn in self._connections.items():
+            if owner != tenant_id:
+                continue
             for tool_info in conn.get("tools", []):
                 definitions.append(
                     {

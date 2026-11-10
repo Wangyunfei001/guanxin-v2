@@ -237,7 +237,7 @@ export default function McpPage() {
                         {server.description || "暂无描述"}
                       </p>
                       <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">
-                        {server.command} {server.args.join(" ")}
+                        {server.command ? `${server.command} ${(server.args ?? []).join(" ")}` : "命令行仅管理员可见"}
                       </p>
                     </div>
                     {isAdmin && (

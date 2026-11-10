@@ -215,14 +215,15 @@ export interface SkillMetadata {
 // ============ MCP ============
 export interface MCPServer {
   name: string
-  command: string
-  args: string[]
-  env: Record<string, string>
   description: string
   status: string
   registered?: boolean
   runtime_status?: string
   agent_enabled?: boolean
+  // 仅管理员可见：非管理员的响应不包含命令行与环境变量名。
+  command?: string
+  args?: string[]
+  env_keys?: string[]
 }
 
 export interface MCPConnection {
