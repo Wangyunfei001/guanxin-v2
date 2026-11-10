@@ -411,10 +411,13 @@ type ApiClient = {
 **后端**（评审已 grep 确认零引用）：
 
 - `app/agent/prompts.py`：`USER_SYSTEM_PROMPT_BACKUP`、`INTENT_CLASSIFICATION_PROMPT`、`CONFIRM_MODE_PROMPT_SUFFIX`、`AI_ELEMENTS_TOOLS_GUIDE`、`build_system_prompt`
-- `app/agent/tools.py`：`get_tools`、`get_enabled_tools`、`skill_execute_tool_factory`、`_create_mcp_langchain_tool`
-- `app/services/research_store.py`：`create_run` / `upsert_source` / `append_event` 从未被 `app/` 调用 → 旧研究写路径整体删除
+- `app/agent/tools.py`：`get_tools`、`get_enabled_tools`、`skill_execute_tool_factory`、`_create_mcp_langchain_tool`（已在 W1 一并删除——它们依赖的 MCP 内部契约已变更，留着会变成坏路径）
 - `app/agent/tool_catalog.py::catalog_prompt`
 - `app/core/tenant.py::clear_tenant_context`
+- `app/skills/base.py::as_langchain_tool`
+- `app/core/exceptions.py`：**删除**（实施时对原方案的调整）。原方案是「启用而非删除」，但它构成第三套无人使用的异常机制，而 `app/core/responses.py` 的 `success()` / `error()` 与 FastAPI 的 `HTTPException` 已覆盖全部场景；HTTP 语义按决策保持现状，没有留给它的缺口。启用只会增加噪音。
+- `app/services/research_store.py`：**保留**。评审称它是死写路径，但实际不是——旧研究归档的「转入原生任务」功能靠它读取，测试也用它播种归档数据。
+- `app/agent/llm.py::_create_llm` → 改名为 `create_llm`（私有约定却被另外两个模块导入）；同时修掉它吞掉真实错误的问题：此前任何初始化异常都被转成「请先配置 OPENAI_API_KEY」，401、地址写错、模型名无效全被误诊成同一个问题且无日志。现在区分「未配置密钥」（返回 None）与「初始化失败」（记日志并抛 `LLMConfigurationError`）。
 
 **前端**：
 
