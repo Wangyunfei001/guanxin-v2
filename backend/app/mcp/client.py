@@ -6,11 +6,17 @@
 互不覆盖。工具定义只对所属租户可见。
 """
 
+import asyncio
 import json
+from datetime import timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 # (tenant_id, server_name) -> 连接信息
 ConnectionKey = Tuple[str, str]
+
+# 单次 MCP 握手 / 工具调用的超时。挂死的 Server 不能永久占住请求。
+MCP_CALL_TIMEOUT = timedelta(seconds=30)
+MCP_CALL_TIMEOUT_SECONDS = MCP_CALL_TIMEOUT.total_seconds()
 
 
 class MCPClient:
@@ -51,11 +57,17 @@ class MCPClient:
 
             # 使用 stdio_client 建立连接
             async with stdio_client(server_params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
+                async with ClientSession(
+                    read, write, read_timeout_seconds=MCP_CALL_TIMEOUT
+                ) as session:
+                    await asyncio.wait_for(
+                        session.initialize(), timeout=MCP_CALL_TIMEOUT_SECONDS
+                    )
 
                     # 获取工具列表
-                    tools_result = await session.list_tools()
+                    tools_result = await asyncio.wait_for(
+                        session.list_tools(), timeout=MCP_CALL_TIMEOUT_SECONDS
+                    )
                     tools = []
                     for item in tools_result.tools:
                         annotations = getattr(item, "annotations", None)
@@ -169,9 +181,16 @@ class MCPClient:
             )
 
             async with stdio_client(server_params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    result = await session.call_tool(tool_name, arguments)
+                async with ClientSession(
+                    read, write, read_timeout_seconds=MCP_CALL_TIMEOUT
+                ) as session:
+                    await asyncio.wait_for(
+                        session.initialize(), timeout=MCP_CALL_TIMEOUT_SECONDS
+                    )
+                    result = await asyncio.wait_for(
+                        session.call_tool(tool_name, arguments),
+                        timeout=MCP_CALL_TIMEOUT_SECONDS,
+                    )
                     structured = getattr(result, "structuredContent", None)
                     output: Any = structured
                     if output is None:
@@ -192,6 +211,11 @@ class MCPClient:
                         "is_error": is_error,
                     }
 
+        except asyncio.TimeoutError:
+            return {
+                "success": False,
+                "error": f"MCP Server {server_name} 响应超时（{MCP_CALL_TIMEOUT_SECONDS} 秒）",
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 

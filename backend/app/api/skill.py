@@ -63,5 +63,5 @@ async def execute_skill(
         user_role=user.role,
     )
     executor = SkillExecutor()
-    result = executor.execute(request.skill_name, request.params, context)
+    result = await executor.execute_async(request.skill_name, request.params, context)
     return success(result.to_dict())

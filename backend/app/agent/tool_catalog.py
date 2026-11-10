@@ -118,12 +118,19 @@ def _mcp_tool(tenant_id: str, server_name: str, definition: dict[str, Any]) -> B
     async def call_mcp(**kwargs: Any) -> dict[str, Any]:
         from app.mcp.client import get_mcp_client
 
-        return await get_mcp_client().call_tool(
+        result = await get_mcp_client().call_tool(
             tenant_id,
             server_name,
             definition["tool_name"],
             kwargs,
         )
+        # 失败的 MCP 调用不能以 success=true 的形式回到模型手里。
+        if result.get("is_error"):
+            return {
+                "success": False,
+                "error": result.get("error") or "MCP 工具执行失败",
+            }
+        return result
 
     return StructuredTool.from_function(
         coroutine=call_mcp,
