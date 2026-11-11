@@ -34,7 +34,7 @@ tags:
 - **身份与租户**：JWT / API Key 双认证，预设 Demo 账号分属两个租户，所有业务数据按 `tenant_id`（会话、工作流、研究再叠加 `user_id`）隔离，越权统一 404。
 - **知识库**：PDF 文本层 / DOCX / TXT 上传解析、分块、Ollama `bge-m3` 向量写入 ChromaDB、按租户 collection 检索，文档状态全程可追踪，失败有补偿。
 - **Agent 运行**：Deep Agents 官方工具循环 + LangGraph SQLite checkpoint，原生流式事件、可重放订阅、刷新或重启后从 checkpoint 继续；虚拟文件只存在于会话状态内，可下载 Markdown 报告。
-- **工具授权**：工具目录按租户 Agent 配置、RBAC、MCP 风险标注构造，只读工具自动执行，写与未知风险工具只能进入可审批的持久化工作流。
+- **工具授权**：工具目录按租户 Agent 配置、RBAC、MCP 风险标注构造，可见性与风险等级由 Agent 与工作流共用同一份判定；只读工具自动执行，写与未知风险工具只能进入可审批的持久化工作流。
 - **持久化工作流**：DeepSeek Planner 生成最多 16 步线性计划，LangGraph `interrupt()` 暂停等待参数或审批，幂等执行、可取消、进程异常窗口内的风险步骤交由 admin 接管。
 - **联网研究**：授权工具 + DeepSeek Web Search，会话级搜索预算，仅从可信域名读取原文并与逐字摘录比对，引用一律待人工审查。
 - **MCP 双向**：观心 Agent 消费 stdio MCP Server（含真实天气 Server），观心自身也作为只读 MCP 网关供外部客户端调用。
@@ -58,6 +58,6 @@ tags:
 
 - **服务端是唯一授权边界**：客户端不能指定 tenant、user、model 或工具权限；每次工具调用、每次工作流恢复都重新校验。
 - **不重写官方已经给的能力**：消息拼装、运行状态机、工具循环交给 LangChain / Deep Agents 官方实现，本仓库只做业务投影。
-- **写操作只有一条路**：进入持久化工作流 → 人工审批 → 幂等执行；不给通用 Agent 直接写权限。
+- **写操作只有一条路**：Agent 调 `request_business_workflow` → 进入持久化工作流 → 人工审批 → 幂等执行；不给通用 Agent 直接写权限，也没有绕过模型的正则旁路。
 - **演示必须真实**：模型或 Embedding 不可用时明确报错并留痕，不返回伪造的成功结果，也不用随机向量代替语义检索。
 - **本地数据优先**：SQLite + ChromaDB + 本地 Ollama，零外部部署依赖，便于一键起停与清理。

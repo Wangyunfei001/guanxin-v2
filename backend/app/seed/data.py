@@ -72,6 +72,10 @@ SEED_AGENT_CONFIGS: List[Dict[str, Any]] = [
     },
 ]
 
+# === 预设租户 ===
+# Agent 配置、默认 MCP Server 与示例文档都按这个列表为每个租户初始化。
+SEED_TENANT_IDS: List[str] = ["tenant-a", "tenant-b"]
+
 # === 默认 MCP Server 配置 ===
 SEED_MCP_SERVERS: List[Dict[str, Any]] = [
     {

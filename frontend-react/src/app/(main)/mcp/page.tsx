@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { mcpApi } from "@/lib/api/mcp"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useMcpStore } from "@/lib/stores/mcp"
+import { ErrorState } from "@/components/layout/error-state"
 import type { MCPToolPolicy } from "@/types"
 
 export default function McpPage() {
@@ -237,7 +238,7 @@ export default function McpPage() {
                         {server.description || "暂无描述"}
                       </p>
                       <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">
-                        {server.command} {server.args.join(" ")}
+                        {server.command ? `${server.command} ${(server.args ?? []).join(" ")}` : "命令行仅管理员可见"}
                       </p>
                     </div>
                     {isAdmin && (
@@ -280,7 +281,9 @@ export default function McpPage() {
             )}
           </CardHeader>
           <CardContent className="p-0">
-            {mcpStore.connections.length === 0 ? (
+            {mcpStore.error ? (
+              <ErrorState message={mcpStore.error} onRetry={() => void mcpStore.loadConnections()} />
+            ) : mcpStore.connections.length === 0 ? (
               <EmptyState icon={Plugs} title="暂无活跃连接" description="连接 Server 后，发现的工具会出现在这里。" className="min-h-48" />
             ) : (
               <div className="divide-y">

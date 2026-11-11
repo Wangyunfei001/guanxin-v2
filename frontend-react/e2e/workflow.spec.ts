@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test"
 
 import { login } from "./helpers"
 
+test.skip(!process.env.GUANXIN_E2E_AGENT_FIXTURE, "Requires deterministic native model test entrypoint")
+
 test("persistent workflow collects input, executes approval and survives refresh", async ({ page }) => {
   await login(page)
 
@@ -76,7 +78,9 @@ test("persistent workflow collects input, executes approval and survives refresh
     const workflowTrack = page.getByText("执行轨迹", { exact: true })
     await expect(workflowTrack).toHaveCount(1)
     await expect(page.getByText("1 tool call", { exact: true })).toHaveCount(0)
-    await expect(page.getByText("补充参数：创建用户")).toBeVisible()
+    // The agent really called request_business_workflow, so the tool call and
+    // its result are part of the transcript — match the workflow card title.
+    await expect(page.getByText("补充参数：创建用户", { exact: true })).toBeVisible()
     await expect(composer).toBeDisabled()
     await expect(sendButton).toBeDisabled()
     await expect(attachmentButton).toBeDisabled()
@@ -88,7 +92,7 @@ test("persistent workflow collects input, executes approval and survives refresh
 
     await expect(workflowTrack).toHaveCount(1)
     await expect(page.getByText("1 tool call", { exact: true })).toHaveCount(0)
-    await expect(page.getByText("确认执行：创建用户")).toBeVisible()
+    await expect(page.getByText("确认执行：创建用户", { exact: true })).toBeVisible()
     await expect(page.getByText("响应已提交，工作流正在继续。")).toHaveCount(0)
     await page.getByRole("button", { name: "批准执行" }).click()
     await expect(workflowTrack).toHaveCount(1)
@@ -124,4 +128,37 @@ test("persistent workflow collects input, executes approval and survives refresh
     const restoreResponse = await page.request.put("/api/agent/config", { headers, data: payload })
     expect(restoreResponse.ok()).toBeTruthy()
   }
+})
+
+test("a question about deleting a user gets an answer, not an approval card", async ({ page }) => {
+  await login(page)
+
+  const token = await page.evaluate(() => localStorage.getItem("access_token"))
+  const headers = { Authorization: `Bearer ${token}` }
+  const conversation = await page.request.post("/api/agent/conversations", {
+    headers,
+    data: { title: "问句不建工作流" },
+  })
+  const conversationId = (await conversation.json()).data.conversation_id
+  await page.evaluate((id) => {
+    localStorage.setItem("guanxin_active_conversation", id)
+  }, conversationId)
+  await page.reload()
+
+  const composer = page.getByLabel("输入消息")
+  await composer.fill("如何删除用户")
+  await page.getByRole("button", { name: "发送消息" }).click()
+
+  // No workflow card, no parameter form — a question is answered, not executed.
+  await expect(page.getByText("执行轨迹", { exact: true })).toHaveCount(0)
+  await expect(page.getByText("补充参数：删除用户")).toHaveCount(0)
+  await expect(page.getByText("确认执行：删除用户")).toHaveCount(0)
+
+  await expect.poll(async () => {
+    const current = await page.request.get(`/api/agent/threads/${conversationId}/state`, { headers })
+    const values = (await current.json()).values
+    return { status: values.run_status, hasWorkflow: Boolean(values.workflow) }
+  }).toEqual({ status: "completed", hasWorkflow: false })
+
+  await page.request.delete(`/api/agent/conversations/${conversationId}`, { headers })
 })

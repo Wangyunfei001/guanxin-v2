@@ -23,7 +23,11 @@ depends-on:
 
 ## 契约
 
-**客户端（观心 → 外部 Server）**：`connect(server, command, args, env)` 启动 stdio 子进程、initialize 并缓存工具清单与运行时状态；连接与「当前租户 Agent 已启用」是两个独立状态，管理员连接成功后本模块负责把该 Server 幂等写进租户 Agent 配置。工具以 `mcp__{server}__{tool}` 命名并按其 inputSchema 生成结构化入参。
+**租户隔离**：MCP Server 注册表与客户端连接缓存都按 `(tenant_id, server_name)` 分键。任意租户的管理员只能注册、查看、注销自己租户的 Server——不能覆盖其他租户的同名 Server（其 `command` / `args` 会被真正 exec），也不能删除其他租户的 Server。工具定义只对所属租户可见。
+
+**客户端（观心 → 外部 Server）**：`connect(tenant_id, server, command, args, env)` 启动 stdio 子进程、initialize 并缓存工具清单与运行时状态；连接与「当前租户 Agent 已启用」是两个独立状态，管理员连接成功后本模块负责把该 Server 幂等写进租户 Agent 配置。工具以 `mcp__{server}__{tool}` 命名并按其 inputSchema 生成结构化入参。
+
+**信息暴露面**：MCP Server 的 `env`（通常是 API Key）的**值**任何角色都拿不到，管理员只能看到环境变量名列表；非管理员连 `command` / `args` 都看不到，避免泄露后端解释器路径。
 
 **风险标注**：`mcp_tool_policies` 按租户 + Server + 工具记录 `enabled`、`effect`、`approval_required`；未标注即保守处理。
 
@@ -35,3 +39,4 @@ depends-on:
 
 - 预设 API Key 是进程内数据，后端重启后需重新获取。
 - 网关与天气 Server 都依赖公网或后端可用性，不提供 SLA、预警或重试编排。
+- Server 注册与连接状态都不跨重启保留。

@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState, type FC } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { agentApi } from "@/lib/api/agent"
+import { parseResearchData } from "@/lib/api/schemas"
 import { cn } from "@/lib/utils"
 import type { ResearchData, ResearchTask } from "@/types"
 
@@ -40,19 +41,38 @@ const TaskIcon: FC<{ task: ResearchTask }> = ({ task }) => {
   return <Circle size={16} className="text-muted-foreground/50" />
 }
 
+/**
+ * 校验入口：形状不对时给出明确提示，而不是把坏数据塞进状态。
+ */
 export const ResearchDataRenderer: FC<{ data: ResearchData; onMigrated?: () => void }> = ({ data, onMigrated }) => {
-  const [research, setResearch] = useState<ResearchData>(data as ResearchData)
+  const parsed = useMemo(() => parseResearchData(data), [data])
+  if (!parsed) {
+    return (
+      <div
+        role="alert"
+        className="my-4 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+      >
+        研究数据格式异常，无法展示。
+      </div>
+    )
+  }
+  return <ResearchCard data={parsed} onMigrated={onMigrated} />
+}
+
+const ResearchCard: FC<{ data: ResearchData; onMigrated?: () => void }> = ({ data, onMigrated }) => {
+  const [research, setResearch] = useState<ResearchData>(data)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState("")
 
-  useEffect(() => setResearch(data as ResearchData), [data])
+  useEffect(() => setResearch(data), [data])
 
   useEffect(() => {
     let stopped = false
     const refresh = async () => {
       try {
         const response = await agentApi.getResearch(research.run_id)
-        if (!stopped && response.code === 0) setResearch(response.data)
+        const next = response.code === 0 ? parseResearchData(response.data) : null
+        if (!stopped && next) setResearch(next)
       } catch {
         // Keep the last persisted snapshot during transient network failures.
       }
@@ -78,7 +98,8 @@ export const ResearchDataRenderer: FC<{ data: ResearchData; onMigrated?: () => v
     setActionError("")
     try {
       const response = await agentApi.cancelResearch(research.run_id)
-      if (response.code === 0) setResearch(response.data)
+      const next = response.code === 0 ? parseResearchData(response.data) : null
+      if (next) setResearch(next)
     } catch {
       setActionError("操作未完成，请检查当前任务状态后重试。")
     } finally {
@@ -91,7 +112,8 @@ export const ResearchDataRenderer: FC<{ data: ResearchData; onMigrated?: () => v
     setActionError("")
     try {
       const response = await agentApi.resumeResearch(research.run_id)
-      if (response.code === 0) { setResearch(response.data); onMigrated?.() }
+      const next = response.code === 0 ? parseResearchData(response.data) : null
+      if (next) { setResearch(next); onMigrated?.() }
     } catch {
       setActionError("操作未完成，请检查当前任务状态后重试。")
     } finally {

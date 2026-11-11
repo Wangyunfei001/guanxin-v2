@@ -59,7 +59,7 @@ async def resume_research_run(run_id: str, user: User = Depends(get_current_user
         raise HTTPException(409, "请先处理当前业务工作流")
     message_id = f"legacy-research:{run_id}"
     try:
-        native, created = runs.admit_run(cid, message_id)
+        native, created = await runs.admit_run(cid, message_id)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     if created:

@@ -37,6 +37,9 @@ export default defineConfig({
         CHROMA_PERSIST_DIR: path.join(e2eRoot, "chroma"),
         UPLOAD_DIR: path.join(e2eRoot, "uploads"),
         USER_DATA_PATH: path.join(e2eRoot, "users.json"),
+        // Keep the upload ceiling small so the limit is testable without
+        // pushing tens of megabytes through the browser.
+        MAX_UPLOAD_SIZE_MB: "1",
         OPENAI_API_KEY: "",
         EMBEDDING_PROVIDER: "openai",
         EMBEDDING_API_KEY: "",

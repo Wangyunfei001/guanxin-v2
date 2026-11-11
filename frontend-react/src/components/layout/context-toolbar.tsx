@@ -30,7 +30,7 @@ export function ContextToolbar() {
   }
 
   return (
-    <header className="relative z-20 flex h-14 shrink-0 items-center justify-between border-b bg-background/92 px-3 backdrop-blur-xl md:px-5">
+    <header className="relative z-sticky flex h-toolbar shrink-0 items-center justify-between border-b bg-background/92 px-3 backdrop-blur-xl md:px-5">
       <div className="min-w-0 pl-10 md:pl-0">
         <div className="flex items-center gap-2">
           <h1 className="truncate text-[15px] font-semibold tracking-[-0.01em]">{title}</h1>

@@ -28,11 +28,21 @@ class BrowserModel(BaseChatModel):
 
     def _chunks(self, messages):
         text = next((m.content for m in reversed(messages) if m.type == "human"), "")
-        if "生成测试报告" in text and messages[-1].type != "tool":
-            yield AIMessageChunk(content="", tool_call_chunks=[{
-                "name": "write_file", "args": '{"file_path":"/reports/browser.md","content":"# 测试报告\\n这是端到端测试产物。"}',
-                "id": "browser-write", "index": 0}])
-            return
+        last_is_tool = messages[-1].type == "tool"
+        if not last_is_tool:
+            # The business-mutation path goes through the real agent tool, so the
+            # browser test covers agent -> tool -> approval instead of a shortcut.
+            if "创建一个用户" in text:
+                yield AIMessageChunk(content="", tool_call_chunks=[{
+                    "name": "request_business_workflow",
+                    "args": '{"goal":"创建一个用户"}',
+                    "id": "browser-workflow", "index": 0}])
+                return
+            if "生成测试报告" in text:
+                yield AIMessageChunk(content="", tool_call_chunks=[{
+                    "name": "write_file", "args": '{"file_path":"/reports/browser.md","content":"# 测试报告\\n这是端到端测试产物。"}',
+                    "id": "browser-write", "index": 0}])
+                return
         answer = "测试报告已保存到 /reports/browser.md。" if "生成测试报告" in text else "这是一段用于验证原生流式接入的测试回复。"
         for word in answer:
             yield AIMessageChunk(content=word)
@@ -51,5 +61,5 @@ class BrowserModel(BaseChatModel):
 from app.agent import deep_agent
 from app.main import create_app
 
-deep_agent._create_llm = lambda *a, **kw: BrowserModel()
+deep_agent.create_llm = lambda *a, **kw: BrowserModel()
 app = create_app()

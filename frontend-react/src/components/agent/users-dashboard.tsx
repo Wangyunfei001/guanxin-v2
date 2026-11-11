@@ -2,119 +2,19 @@
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
 
-type User = { user_id: string; username: string; email: string; role: string; status: string; created_at: string }
-type Counts = Record<string, number>
-type Statistics = { total: number; roles: Counts; statuses: Counts }
-type Filters = { keyword?: string; role?: string }
+import {
+  countBy,
+  type Counts,
+  type User,
+  type UsersResult,
+} from "./users-dashboard-data"
 
-export type UsersResult = {
-  users: User[]
-  total: number
-  page: number
-  page_size: number
-  statistics?: Statistics
-  filters?: Filters
-}
-
+// 展示用的标签与配色属于组件，不属于解析逻辑。
 const roles: Record<string, string> = { admin: "管理员", user: "普通用户", viewer: "访客", unknown: "未知角色" }
 const statuses: Record<string, string> = { active: "活跃", inactive: "非活跃", unknown: "未知状态" }
 const statusColors = ["#059669", "#94a3b8", "#d97706", "#6366f1"]
 const barColors = ["#059669", "#3b82f6", "#8b5cf6"]
-const userFields: (keyof User)[] = ["user_id", "username", "email", "role", "status", "created_at"]
 const columns = ["用户", "邮箱", "角色", "状态", "创建时间"]
-
-const isUser = (value: unknown): value is User =>
-  !!value && typeof value === "object"
-  && userFields.every((field) => typeof (value as User)[field] === "string")
-
-const isCounts = (value: unknown): value is Counts =>
-  !!value && typeof value === "object" && !Array.isArray(value)
-  && Object.values(value as Counts).every((count) => Number.isInteger(count) && count >= 0)
-
-const sumCounts = (counts: Counts) => Object.values(counts).reduce((total, count) => total + count, 0)
-
-const isStatistics = (value: unknown, total: number): value is Statistics => {
-  if (!value || typeof value !== "object") return false
-  const statistics = value as Statistics
-  if (!Number.isInteger(statistics.total) || statistics.total !== total) return false
-  if (!isCounts(statistics.roles) || !isCounts(statistics.statuses)) return false
-  return sumCounts(statistics.roles) === statistics.total && sumCounts(statistics.statuses) === statistics.total
-}
-
-const isFilters = (value: unknown): value is Filters => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false
-  return Object.values(value as Record<string, unknown>).every((item) => typeof item === "string")
-}
-
-/**
- * Parse a skill__query_users tool payload. Fields degrade one by one instead of
- * rejecting the whole result: a broken statistics block falls back to the current
- * page, and malformed user rows are dropped instead of hiding the dashboard.
- */
-export function parseUsersResult(text: string): UsersResult | null {
-  let payload: unknown
-  try {
-    payload = JSON.parse(text)
-  } catch {
-    return null
-  }
-  if (!payload || typeof payload !== "object") return null
-  const result = payload as Record<string, unknown>
-  if (result.success === false) return null
-  const data = (result.output ?? result) as Record<string, unknown>
-  if (!data || typeof data !== "object") return null
-  if (!Array.isArray(data.users)) return null
-  if (!Number.isInteger(data.total) || (data.total as number) < 0) return null
-  const total = data.total as number
-  const users = data.users.filter(isUser)
-  return {
-    users,
-    total,
-    page: Number.isInteger(data.page) ? (data.page as number) : 1,
-    page_size: Number.isInteger(data.page_size) ? (data.page_size as number) : users.length,
-    statistics: isStatistics(data.statistics, total) ? data.statistics : undefined,
-    filters: isFilters(data.filters) ? data.filters : undefined,
-  }
-}
-
-function countBy(users: User[], key: "role" | "status"): Counts {
-  return users.reduce<Counts>((result, user) => {
-    const value = user[key] || "unknown"
-    result[value] = (result[value] || 0) + 1
-    return result
-  }, {})
-}
-
-// The model marks a reply that only repeats the dashboard. The marker is the
-// contract between prompt and UI, so the rule does not depend on wording.
-const markerAtStart = /^\s*\[看板\]\s*/
-const markerAnywhere = /\[看板\]/g
-
-/** Every number the dashboard already shows, used to cross-check the marked reply. */
-export function dashboardNumbers(data: UsersResult): number[] {
-  const numbers = new Set<number>([data.total])
-  const roleCounts = data.statistics?.roles ?? countBy(data.users, "role")
-  const statusCounts = data.statistics?.statuses ?? countBy(data.users, "status")
-  for (const count of Object.values(roleCounts)) numbers.add(count)
-  for (const count of Object.values(statusCounts)) numbers.add(count)
-  return [...numbers]
-}
-
-export function stripDashboardMarker(text: string): string {
-  // Strip wherever the model put it, so the contract never leaks into the UI.
-  return text.replace(markerAnywhere, "").trim()
-}
-
-/**
- * A marked reply is dropped only when every number it mentions is already on the
- * dashboard. A reply that reports a different count stays visible as a mismatch
- * signal, because the dashboard and the model then disagree.
- */
-export function isDashboardRestatement(text: string, knownNumbers: number[]): boolean {
-  if (!markerAtStart.test(text)) return false
-  const mentioned = (text.match(/\d+/g) ?? []).map(Number)
-  return mentioned.every((value) => knownNumbers.includes(value))
-}
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
   return <div className="rounded-xl bg-muted/50 p-3">

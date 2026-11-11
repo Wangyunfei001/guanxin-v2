@@ -15,6 +15,22 @@ class ScriptedModel(FakeMessagesListChatModel):
         return self
 
 
+def workflow_request_model(goal: str):
+    """A scripted model that requests a business workflow through the real agent tool.
+
+    写操作只能由 Agent 调 ``request_business_workflow`` 发起，没有旁路。
+    """
+    return ScriptedModel(responses=[
+        AIMessage(content="", tool_calls=[{
+            "name": "request_business_workflow",
+            "args": {"goal": goal},
+            "id": "workflow-request",
+        }]),
+        AIMessage(content="已发起变更审批，请在审批卡片中处理。"),
+        AIMessage(content="已发起变更审批，请在审批卡片中处理。"),
+    ])
+
+
 def new_thread(client, headers):
     return client.post("/api/agent/conversations", headers=headers, json={}).json()["data"]["conversation_id"]
 
@@ -35,14 +51,14 @@ def settled(client, headers, cid):
     raise AssertionError("native agent failed to settle")
 
 
-def test_native_graph_writes_artifact_and_restores_tool_order(test_client, admin_headers, monkeypatch):
+async def test_native_graph_writes_artifact_and_restores_tool_order(test_client, admin_headers, monkeypatch):
     model = ScriptedModel(responses=[
         AIMessage(content="", tool_calls=[{"name": "write_file", "args": {
             "file_path": "/reports/result.md", "content": "# 测试报告\n已验证"}, "id": "write-report"}]),
         AIMessage(content="报告已保存。"),
         AIMessage(content="我记得上一份报告。"),
     ])
-    monkeypatch.setattr(deep_agent, "_create_llm", lambda *a, **kw: model)
+    monkeypatch.setattr(deep_agent, "create_llm", lambda *a, **kw: model)
     cid = new_thread(test_client, admin_headers)
     mid = str(uuid.uuid4())
     response = submit(test_client, admin_headers, cid, "整理报告", mid)
@@ -59,7 +75,7 @@ def test_native_graph_writes_artifact_and_restores_tool_order(test_client, admin
     reloaded = test_client.get(f"/api/agent/threads/{cid}/state", headers=admin_headers).json()["values"]
     assert reloaded["files"] == values["files"]
     assert reloaded["messages"] == values["messages"]
-    replay = runs.read_events(cid, 0)
+    replay = await runs.read_events(cid, 0)
     assert {e["method"] for e in replay} >= {"lifecycle", "values"}
     assert len({e["event_id"] for e in replay}) == len(replay)
     # Same client message id cannot start the task twice.
@@ -88,7 +104,7 @@ def test_native_owner_and_input_are_server_controlled(test_client, admin_headers
 def test_native_disallowed_delegation_fails_closed(test_client, admin_headers, monkeypatch):
     model = ScriptedModel(responses=[AIMessage(content="", tool_calls=[{
         "name": "task", "args": {"description": "escape", "subagent_type": "general-purpose"}, "id": "blocked"}])])
-    monkeypatch.setattr(deep_agent, "_create_llm", lambda *a, **kw: model)
+    monkeypatch.setattr(deep_agent, "create_llm", lambda *a, **kw: model)
     cid = new_thread(test_client, admin_headers)
     submit(test_client, admin_headers, cid, "test blocked delegation")
     state = settled(test_client, admin_headers, cid)
@@ -96,7 +112,7 @@ def test_native_disallowed_delegation_fails_closed(test_client, admin_headers, m
     assert "未启用" in state["run_error"]
 
 
-def test_cancel_preserves_run_and_rejects_concurrent_submit(test_client, admin_headers, monkeypatch):
+async def test_cancel_preserves_run_and_rejects_concurrent_submit(test_client, admin_headers, monkeypatch):
     async def slow_builder(*args, **kwargs):
         await asyncio.Event().wait()
     from app.agent import thread_service
@@ -109,7 +125,7 @@ def test_cancel_preserves_run_and_rejects_concurrent_submit(test_client, admin_h
     assert submit(test_client, admin_headers, cid, "另一条").status_code == 409
     assert test_client.post(f"/api/agent/threads/{cid}/cancel", headers=admin_headers).status_code == 200
     assert settled(test_client, admin_headers, cid)["run_status"] == "cancelled"
-    assert runs.read_events(cid, 0)[-1]["params"]["data"]["event"] == "interrupted"
+    assert (await runs.read_events(cid, 0))[-1]["params"]["data"]["event"] == "interrupted"
 
 
 def test_unconfigured_model_reports_failure_without_fake_success(test_client, admin_headers):

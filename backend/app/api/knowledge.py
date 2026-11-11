@@ -5,9 +5,10 @@
 
 import asyncio
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from app.config import settings
 from app.core.deps import get_current_user
 from app.core.responses import success
 from app.core.tenant import get_tenant_id
@@ -16,6 +17,35 @@ from app.services.knowledge_service import get_knowledge_service
 from app.services.retrieval_service import get_retrieval_service
 
 router = APIRouter(prefix="/knowledge", tags=["知识库"])
+
+# 上传读取的分块大小（1 MiB）
+UPLOAD_CHUNK_SIZE = 1 << 20
+
+
+def _upload_limit_bytes() -> int:
+    """单次上传允许的最大字节数。"""
+    return settings.max_upload_size_mb * 1024 * 1024
+
+
+async def _read_limited(file: UploadFile, limit: int) -> bytes:
+    """分块读取上传内容，超过上限立即中断。
+
+    不把整个文件一次性读进内存，避免超限请求耗尽 worker 内存。
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(UPLOAD_CHUNK_SIZE)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(
+                status_code=413,
+                detail=f"文件超过 {settings.max_upload_size_mb} MB 上限",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 @router.post("/documents/upload")
@@ -26,7 +56,16 @@ async def upload_document(
 ):
     """上传文档到知识库。"""
     tenant_id = get_tenant_id() or user.tenant_id
-    content = await file.read()
+    limit = _upload_limit_bytes()
+
+    # 预检：解析器已知长度时直接拒绝，不必先读进内存。
+    if file.size is not None and file.size > limit:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件超过 {settings.max_upload_size_mb} MB 上限",
+        )
+
+    content = await _read_limited(file, limit)
     service = get_knowledge_service()
     doc = await service.upload_document(
         tenant_id=tenant_id,

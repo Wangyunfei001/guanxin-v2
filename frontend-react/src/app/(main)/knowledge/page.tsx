@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table"
 import { knowledgeApi } from "@/lib/api/knowledge"
 import { useKnowledgeStore } from "@/lib/stores/knowledge"
+import { ErrorState } from "@/components/layout/error-state"
 import { useLayoutStore } from "@/lib/stores/layout"
 import { formatDate, formatSize } from "@/lib/utils"
 import type { Document, DocumentChunk } from "@/types"
@@ -87,6 +88,7 @@ export default function KnowledgePage() {
     retrievalResults,
     loading,
     retrieving,
+    error,
     loadDocuments,
     uploadDocument,
     deleteDocument,
@@ -191,7 +193,9 @@ export default function KnowledgePage() {
           {loading && <span className="text-xs text-muted-foreground">正在同步</span>}
         </CardHeader>
         <CardContent className="p-0">
-          {documents.length === 0 && !loading ? (
+          {error ? (
+            <ErrorState message={error} onRetry={() => void loadDocuments()} />
+          ) : documents.length === 0 && !loading ? (
             <EmptyState
               icon={FileText}
               title="知识库还是空的"

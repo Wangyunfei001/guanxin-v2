@@ -114,7 +114,8 @@ def test_store_allows_only_one_active_run_per_conversation():
 
 
 def test_workflow_resumes_once_and_rejects_duplicate_approval(test_client, admin_headers, monkeypatch):
-    from tests.test_langchain import new_thread, submit, settled
+    from tests.test_langchain import new_thread, submit, settled, workflow_request_model
+    from app.agent import deep_agent
     original = _enable_create_user()
     calls = 0
     async def fake_execute(tool, arguments, context):
@@ -122,6 +123,7 @@ def test_workflow_resumes_once_and_rejects_duplicate_approval(test_client, admin
         calls += 1
         return {"success": True, "output": {"username": arguments["username"]}}
     monkeypatch.setattr("app.workflows.engine.execute_tool", fake_execute)
+    monkeypatch.setattr(deep_agent, "create_llm", lambda *a, **kw: workflow_request_model("创建一个用户"))
     try:
         cid = new_thread(test_client, admin_headers)
         assert submit(test_client, admin_headers, cid, "创建一个用户").status_code == 200
@@ -152,9 +154,11 @@ def test_workflow_resumes_once_and_rejects_duplicate_approval(test_client, admin
         get_agent_config_store().save_config(original)
 
 
-def test_workflow_rejection_updates_the_canonical_message(test_client, admin_headers):
-    from tests.test_langchain import new_thread, submit, settled
+def test_workflow_rejection_updates_the_canonical_message(test_client, admin_headers, monkeypatch):
+    from tests.test_langchain import new_thread, submit, settled, workflow_request_model
+    from app.agent import deep_agent
     original = _enable_create_user()
+    monkeypatch.setattr(deep_agent, "create_llm", lambda *a, **kw: workflow_request_model("创建一个用户"))
     try:
         cid = new_thread(test_client, admin_headers)
         submit(test_client, admin_headers, cid, "创建一个用户")
@@ -291,9 +295,11 @@ def test_checkpoint_resume_after_process_restart(tmp_path):
     assert second.stdout.strip() == "cancelled"
 
 
-def test_workflow_api_rbac_history_and_conversation_lock(test_client, admin_headers, demo_headers):
-    from tests.test_langchain import new_thread, submit, settled
+def test_workflow_api_rbac_history_and_conversation_lock(test_client, admin_headers, demo_headers, monkeypatch):
+    from tests.test_langchain import new_thread, submit, settled, workflow_request_model
+    from app.agent import deep_agent
     original = _enable_create_user()
+    monkeypatch.setattr(deep_agent, "create_llm", lambda *a, **kw: workflow_request_model("创建一个用户"))
     try:
         cid = new_thread(test_client, admin_headers)
         submit(test_client, admin_headers, cid, "创建一个用户")

@@ -3,7 +3,13 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
+
+# 技能的副作用等级。只有显式声明为 read 的技能才能免审批自动执行；
+# write 与 unknown 一律进入可审批的持久化工作流。
+SkillEffect = Literal["read", "write", "unknown"]
+
+VALID_SKILL_EFFECTS: frozenset[str] = frozenset({"read", "write", "unknown"})
 
 
 class SkillType(str, Enum):
@@ -50,6 +56,9 @@ class SkillMetadata:
     name: str
     display_name: str
     description: str
+    # 必填：没有默认值。声明副作用等级是每个 Skill 的责任，
+    # 漏声明会在注册时被拒绝，而不是静默按只读处理。
+    effect: SkillEffect
     skill_type: SkillType = SkillType.BUILTIN
     status: SkillStatus = SkillStatus.ACTIVE
     version: str = "1.0.0"
@@ -58,7 +67,6 @@ class SkillMetadata:
     tags: List[str] = field(default_factory=list)
     category: str = "general"
     dependencies: List[str] = field(default_factory=list)
-    effect: str = "read"  # read | write
     approval_required: bool = False
     idempotent: bool = True
     created_at: str = field(

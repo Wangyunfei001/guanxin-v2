@@ -6,6 +6,9 @@ status: draft
 parent: mcp
 ---
 
+> **规格状态**：本文是设计决策记录，**不是权威契约**。现行实现的权威契约在
+> [`docs/specs/`](../../specs/)（spec-graph）；改动行为时以那里为准。
+
 # 真实天气 MCP 设计规格
 
 > 2026-11 备注：文中「不改变 Supervisor」的前提已不存在（Supervisor 已移除），Tool Catalog 仍沿用；数据源、时区、工具契约的决策仍有效。

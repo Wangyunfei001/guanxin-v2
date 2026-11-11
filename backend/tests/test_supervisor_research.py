@@ -79,6 +79,18 @@ async def test_mcp_connect_enables_only_current_tenant(monkeypatch) -> None:
     suffix = uuid.uuid4().hex
     tenant_id = f"tenant-{suffix}"
     other_tenant = f"other-{suffix}"
+
+    # 注册表按租户隔离，Server 必须先在当前租户下注册。
+    from app.mcp.server import get_mcp_server_manager
+
+    get_mcp_server_manager().register_server(
+        tenant_id=tenant_id,
+        name="weather",
+        command="python",
+        args=[],
+        env={},
+    )
+
     user = User(
         user_id=f"admin-{suffix}",
         username="admin",

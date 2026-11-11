@@ -60,6 +60,7 @@ def _client(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.AsyncCl
 @pytest.mark.asyncio
 async def test_weather_mcp_exposes_compatible_read_only_schema() -> None:
     result = await MCPClient().connect(
+        "tenant-weather-test",
         "weather-test",
         sys.executable,
         ["-m", "app.mcp.weather_server"],

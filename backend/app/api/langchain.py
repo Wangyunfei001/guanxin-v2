@@ -84,11 +84,11 @@ async def command(cid: str, request: Request, user: User = Depends(get_current_u
     if get_workflow_store().get_active_for_conversation(cid, user.tenant_id, user.user_id):
         raise HTTPException(409, "请先处理或取消当前工作流")
     if message is None:
-        previous = runs.latest_run(cid)
+        previous = await runs.latest_run(cid)
         if not previous or previous["status"] not in {"failed", "cancelled", "interrupted"}:
             raise HTTPException(409, "没有可继续的中断任务")
     try:
-        run, created = runs.admit_run(cid, message["id"] if message else f"resume:{uuid.uuid4()}")
+        run, created = await runs.admit_run(cid, message["id"] if message else f"resume:{uuid.uuid4()}")
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     if created:
@@ -123,7 +123,7 @@ async def events(cid: str, request: Request, user: User = Depends(get_current_us
             # again so deleting a thread also terminates its subscriptions.
             if not get_conversation_store().get_conversation_for_user(cid, user.tenant_id, user.user_id):
                 return
-            batch = runs.read_events(cid, cursor)
+            batch = await runs.read_events(cid, cursor)
             for event in batch:
                 cursor = event["seq"]
                 if channels and event["method"] not in channels:

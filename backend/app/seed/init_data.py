@@ -46,21 +46,19 @@ async def init_seed_data() -> None:
 
 
 def _init_mcp_servers() -> None:
-    """初始化默认 MCP Server 配置。"""
-    from app.seed.data import SEED_MCP_SERVERS
+    """为每个预设租户初始化默认 MCP Server 配置。
+
+    注册表按租户隔离，因此每个租户都有自己的一份默认 Server。
+    """
+    from app.seed.data import SEED_MCP_SERVERS, SEED_TENANT_IDS
 
     manager = get_mcp_server_manager()
-    for config in SEED_MCP_SERVERS:
-        existing = manager.get_server(config["name"])
-        if existing is None:
-            manager.register_server(
-                name=config["name"],
-                command=config["command"],
-                args=config["args"],
-                env=config.get("env", {}),
-                description=config.get("description", ""),
+    for tenant_id in SEED_TENANT_IDS:
+        manager.init_default_servers(tenant_id)
+        for config in SEED_MCP_SERVERS:
+            logger.info(
+                f"Registered MCP server for {tenant_id}: {config['name']}"
             )
-            logger.info(f"Registered MCP server: {config['name']}")
 
 
 def _init_agent_configs() -> None:
@@ -70,7 +68,9 @@ def _init_agent_configs() -> None:
     store = get_agent_config_store()
 
     # 为每个预设租户创建默认 Agent
-    tenant_ids = ["tenant-a", "tenant-b"]
+    from app.seed.data import SEED_TENANT_IDS
+
+    tenant_ids = SEED_TENANT_IDS
     for tenant_id in tenant_ids:
         for config_data in SEED_AGENT_CONFIGS:
             existing = store.get_config(tenant_id, config_data["agent_id"])
@@ -102,7 +102,9 @@ async def _init_seed_documents() -> None:
     from app.models.document import get_document_store
     from app.seed.data import SEED_DOCUMENTS
 
-    tenant_ids = ["tenant-a", "tenant-b"]
+    from app.seed.data import SEED_TENANT_IDS
+
+    tenant_ids = SEED_TENANT_IDS
     service = get_knowledge_service()
     doc_store = get_document_store()
 

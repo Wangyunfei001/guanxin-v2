@@ -2,6 +2,8 @@
 
 import { X } from "@phosphor-icons/react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+
+import { motionTokens } from "@/lib/design-tokens"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useLayoutStore } from "@/lib/stores/layout"
@@ -24,11 +26,11 @@ export function ContextPanel() {
             exit={{ opacity: 0 }}
           />
           <motion.aside
-            className="fixed inset-y-0 right-0 z-40 flex w-[min(92vw,360px)] flex-col border-l bg-card shadow-float xl:static xl:z-auto xl:w-80 xl:shadow-none"
+            className="fixed inset-y-0 right-0 z-overlay flex w-[min(92vw,360px)] flex-col border-l bg-card shadow-float xl:static xl:z-auto xl:w-inspector xl:shadow-none"
             initial={reduceMotion ? false : { x: 28, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={reduceMotion ? { opacity: 0 } : { x: 28, opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: reduceMotion ? 0 : motionTokens.instant, ease: motionTokens.ease }}
           >
             <div className="flex min-h-14 items-start gap-3 border-b px-4 py-3">
               <div className="min-w-0 flex-1">

@@ -10,21 +10,21 @@ export const a2uiApi = {
    * Get the A2UI component catalog (available component types).
    */
   getCatalog(): Promise<ApiResponse<any[]>> {
-    return client.get("/a2ui/catalog")
+    return client.get<any[]>("/a2ui/catalog")
   },
 
   /**
    * Get preset templates.
    */
   getTemplates(): Promise<ApiResponse<any[]>> {
-    return client.get("/a2ui/templates")
+    return client.get<any[]>("/a2ui/templates")
   },
 
   /**
    * Preview a schema (validate + normalize).
    */
   previewSchema(schema: A2UISchema): Promise<ApiResponse<any>> {
-    return client.post("/a2ui/preview", { schema })
+    return client.post<any>("/a2ui/preview", { schema })
   },
 
   /**
@@ -34,7 +34,7 @@ export const a2uiApi = {
     templateName: string,
     data: any,
   ): Promise<ApiResponse<A2UISchema>> {
-    return client.post("/a2ui/render", { template_name: templateName, data })
+    return client.post<A2UISchema>("/a2ui/render", { template_name: templateName, data })
   },
 
   /**
@@ -46,6 +46,6 @@ export const a2uiApi = {
     props?: Record<string, any>
     children?: A2UISchema[]
   }): Promise<ApiResponse<A2UISchema>> {
-    return client.post("/a2ui/render-dynamic", data)
+    return client.post<A2UISchema>("/a2ui/render-dynamic", data)
   },
 }

@@ -10,7 +10,7 @@ import {
   X,
 } from "@phosphor-icons/react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { AgentThread } from "@/components/agent/thread"
 import { Button } from "@/components/ui/button"
@@ -51,7 +51,7 @@ function ConversationPane({
   onSelect,
 }: ConversationPaneProps) {
   return (
-    <aside className="flex h-full w-[264px] shrink-0 flex-col border-r bg-background lg:bg-muted/30">
+    <aside className="flex h-full w-secondary shrink-0 flex-col border-r bg-background lg:bg-muted/30">
       <div className="flex h-16 items-center justify-between border-b px-4">
         <div>
           <p className="text-sm font-semibold">会话流</p>
@@ -132,21 +132,46 @@ export default function Assistant() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const reduceMotion = useReducedMotion()
   const openInspector = useLayoutStore((state) => state.openInspector)
+  // Which conversation the user currently wants. Only a user action may set
+  // it; the initial selection only fills it when it is still empty. Responses
+  // apply only while they are still the wanted conversation — so an initial
+  // selection can never swap the thread under the user, no matter which
+  // response happens to arrive last.
+  const wantedConversationRef = useRef<string | null>(null)
 
-  const selectConversation = useCallback(async (conversationId: string) => {
-    const response = await agentApi.getConversation(conversationId)
-    if (response.code !== 0 || !response.data) return
-    setActive(response.data)
-    localStorage.setItem(ACTIVE_CONVERSATION_KEY, conversationId)
-    setDrawerOpen(false)
-  }, [])
+  const selectConversation = useCallback(
+    async (conversationId: string, source: "user" | "initial" = "user") => {
+      if (source === "user") {
+        wantedConversationRef.current = conversationId
+      } else {
+        // The initial selection only fills the slot when it is still empty; a
+        // user action always takes precedence.
+        if (wantedConversationRef.current) return
+        wantedConversationRef.current = conversationId
+      }
+      try {
+        const response = await agentApi.getConversation(conversationId)
+        if (wantedConversationRef.current !== conversationId) return
+        if (response.code !== 0 || !response.data) return
+        setActive(response.data)
+        localStorage.setItem(ACTIVE_CONVERSATION_KEY, conversationId)
+        setDrawerOpen(false)
+      } catch (error) {
+        console.error("加载会话失败", error)
+      }
+    },
+    [],
+  )
 
-  const createConversation = useCallback(async () => {
-    const response = await agentApi.createConversation()
-    if (response.code !== 0) return
-    setConversations((current) => [response.data, ...current])
-    await selectConversation(response.data.conversation_id)
-  }, [selectConversation])
+  const createConversation = useCallback(
+    async (source: "user" | "initial" = "user") => {
+      const response = await agentApi.createConversation()
+      if (response.code !== 0) return
+      setConversations((current) => [response.data, ...current])
+      await selectConversation(response.data.conversation_id, source)
+    },
+    [selectConversation],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -158,8 +183,8 @@ export default function Assistant() {
         setConversations(items)
         const savedId = localStorage.getItem(ACTIVE_CONVERSATION_KEY)
         const selected = items.find((item) => item.conversation_id === savedId) || items[0]
-        if (selected) await selectConversation(selected.conversation_id)
-        else await createConversation()
+        if (selected) await selectConversation(selected.conversation_id, "initial")
+        else await createConversation("initial")
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -258,7 +283,7 @@ export default function Assistant() {
       <AnimatePresence>
         {drawerOpen && (
           <motion.div
-            className="fixed inset-0 z-40 flex lg:hidden"
+            className="fixed inset-0 z-overlay flex lg:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -291,7 +316,7 @@ export default function Assistant() {
 
       <section className="relative min-w-0 flex-1 overflow-hidden bg-background">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-full bg-[radial-gradient(circle_at_50%_-30%,hsl(var(--primary)/0.11),transparent_66%)]" />
-        <div className="absolute left-3 top-3 z-20 flex gap-1.5 lg:hidden">
+        <div className="absolute left-3 top-3 z-sticky flex gap-1.5 lg:hidden">
           <Button
             size="icon"
             variant="outline"
@@ -302,7 +327,7 @@ export default function Assistant() {
             <List size={17} />
           </Button>
         </div>
-        <div className="absolute right-3 top-3 z-20">
+        <div className="absolute right-3 top-3 z-sticky">
           <Button
             size="sm"
             variant="ghost"

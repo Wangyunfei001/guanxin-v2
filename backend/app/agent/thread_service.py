@@ -12,12 +12,21 @@ from app.models.tenant import User
 from app.services import agent_run_store as runs
 from app.services.conversation_store import get_conversation_store
 from app.services.workflow_store import get_workflow_store
-from app.workflows.engine import start_workflow
-from app.workflows.planner import detect_workflow_intent
 from app.workflows.presentation import pending_workflow_part, workflow_public_data
 
 logger = logging.getLogger(__name__)
 _tasks: dict[str, asyncio.Task] = {}
+
+# 模型在纯复述统计数字时用这个前缀标记，正文不会展示给用户。它是模型与
+# 界面之间的协议标记，不应进入历史与导出。
+DASHBOARD_MARKER = "[看板]"
+
+
+def strip_dashboard_marker(content: str) -> str:
+    """剥离正文开头的看板标记。"""
+    if content.startswith(DASHBOARD_MARKER):
+        return content[len(DASHBOARD_MARKER):].lstrip()
+    return content
 
 
 def historical_messages(conversation) -> list[dict]:
@@ -45,7 +54,7 @@ async def thread_values(conversation) -> dict:
         conversation.conversation_id, conversation.tenant_id, conversation.user_id)
     if active:
         values["workflow"] = workflow_public_data(active)
-    run = runs.latest_run(conversation.conversation_id)
+    run = await runs.latest_run(conversation.conversation_id)
     values["run_status"] = run["status"] if run else "idle"
     values["run_error"] = run["error"] if run else ""
     from app.research.ledger import snapshot
@@ -88,7 +97,7 @@ async def _execute(run: dict, user: User, message: dict | None, mode: str) -> No
     cid = run["conversation_id"]
     store = get_conversation_store()
     set_tenant_context(user.tenant_id, user.user_id, user.role)
-    runs.append_event(run, runs.protocol_event("lifecycle", {"event": "running"}))
+    await runs.append_event(run, runs.protocol_event("lifecycle", {"event": "running"}))
     try:
         async with asyncio.timeout(480):
             conversation = store.get_conversation_for_user(cid, user.tenant_id, user.user_id)
@@ -97,57 +106,52 @@ async def _execute(run: dict, user: User, message: dict | None, mode: str) -> No
             if message is not None:
                 store.add_message(cid, ConversationMessage(message_id=message["id"], role="user", content=message["content"]))
             previous = await checkpoint_values(cid)
-            intent = detect_workflow_intent(message["content"]) if message else ""
-            if intent:
-                workflow = await start_workflow(user_message=message["content"], intent=intent,
-                    tenant_id=user.tenant_id, user_id=user.user_id, user_role=user.role,
-                    conversation_id=cid, agent_id="default")
-                save_workflow(workflow)
+            # Agent 路径一律经过模型。写操作由模型调用
+            # request_business_workflow 发起，不在运行循环里静默旁路。
+            agent = await build_deep_agent(cid, user, mode)
+            graph_input = None
+            if message is not None:
+                # Import only text for old turns; never replay historical tool calls.
+                history = [] if previous.get("messages") else [
+                    {"id": m.message_id, "role": m.role, "content": m.content}
+                    for m in conversation.messages if m.role in {"user", "assistant"}]
+                graph_input = {"messages": [*history, {**message, "type": "human"}]}
             else:
-                agent = await build_deep_agent(cid, user, mode)
-                graph_input = None
-                if message is not None:
-                    # Import only text for old turns; never replay historical tool calls.
-                    history = [] if previous.get("messages") else [
-                        {"id": m.message_id, "role": m.role, "content": m.content}
-                        for m in conversation.messages if m.role in {"user", "assistant"}]
-                    graph_input = {"messages": [*history, {**message, "type": "human"}]}
-                else:
-                    # Cancellation can happen after accepting the human message
-                    # but before LangGraph writes its input checkpoint.
-                    checkpoint_ids = {m.get("id") for m in previous.get("messages", [])}
-                    missing = [{"id": m.message_id, "role": m.role, "content": m.content}
-                        for m in conversation.messages if m.role in {"user", "assistant"}
-                        and m.message_id not in checkpoint_ids]
-                    if missing:
-                        graph_input = {"messages": missing}
-                async with await agent.astream_events(graph_input, checkpoint_config(cid), version="v3") as stream:
-                    async for event in stream:
-                        # Native event semantics are retained; only JSON serialization,
-                        # durable sequence ids and business presentation live here.
-                        event = json_value(event)
-                        if event.get("method") == "messages":
-                            # Python emits (content event, LangGraph metadata);
-                            # JS protocol v2 puts the event directly in data.
-                            payload = event["params"]["data"]
-                            if isinstance(payload, list) and len(payload) == 2:
-                                content, metadata = payload
-                                if not isinstance(content, dict) or "event" not in content:
-                                    continue  # complete non-streamed messages arrive in values
-                                event["params"]["data"] = content
-                                event["params"]["node"] = metadata.get("langgraph_node", "model")
-                        if event.get("method") == "lifecycle" and not event["params"]["namespace"]:
-                            continue  # our task terminal follows checkpoint + business persistence
-                        if event.get("method") == "values" and not event["params"]["namespace"]:
-                            event["params"]["data"]["run_status"] = "running"
-                        runs.append_event(run, event)
-                await _persist_transcript(cid, user)
+                # Cancellation can happen after accepting the human message
+                # but before LangGraph writes its input checkpoint.
+                checkpoint_ids = {m.get("id") for m in previous.get("messages", [])}
+                missing = [{"id": m.message_id, "role": m.role, "content": m.content}
+                    for m in conversation.messages if m.role in {"user", "assistant"}
+                    and m.message_id not in checkpoint_ids]
+                if missing:
+                    graph_input = {"messages": missing}
+            async with await agent.astream_events(graph_input, checkpoint_config(cid), version="v3") as stream:
+                async for event in stream:
+                    # Native event semantics are retained; only JSON serialization,
+                    # durable sequence ids and business presentation live here.
+                    event = json_value(event)
+                    if event.get("method") == "messages":
+                        # Python emits (content event, LangGraph metadata);
+                        # JS protocol v2 puts the event directly in data.
+                        payload = event["params"]["data"]
+                        if isinstance(payload, list) and len(payload) == 2:
+                            content, metadata = payload
+                            if not isinstance(content, dict) or "event" not in content:
+                                continue  # complete non-streamed messages arrive in values
+                            event["params"]["data"] = content
+                            event["params"]["node"] = metadata.get("langgraph_node", "model")
+                    if event.get("method") == "lifecycle" and not event["params"]["namespace"]:
+                        continue  # our task terminal follows checkpoint + business persistence
+                    if event.get("method") == "values" and not event["params"]["namespace"]:
+                        event["params"]["data"]["run_status"] = "running"
+                    await runs.append_event(run, event)
+            await _persist_transcript(cid, user)
             fresh = store.get_conversation_for_user(cid, user.tenant_id, user.user_id)
             values = await thread_values(fresh)
             status = "waiting_approval" if values.get("workflow") else "completed"
             values["run_status"] = status
-            runs.append_event(run, runs.protocol_event("values", values))
-            runs.finish_run(run, status)
+            await runs.append_event(run, runs.protocol_event("values", values))
+            await runs.finish_run(run, status)
     except asyncio.CancelledError:
         try:
             await _persist_transcript(cid, user)
@@ -168,9 +172,9 @@ async def _finish_failed_run(run: dict, user: User, status: str, error: str = ""
         if conversation:
             values = await thread_values(conversation)
             values.update(run_status=status, run_error=error)
-            runs.append_event(run, runs.protocol_event("values", values))
+            await runs.append_event(run, runs.protocol_event("values", values))
     finally:
-        runs.finish_run(run, status, error)
+        await runs.finish_run(run, status, error)
 
 
 async def _persist_transcript(cid: str, user: User) -> None:
@@ -187,5 +191,5 @@ async def _persist_transcript(cid: str, user: User) -> None:
         if isinstance(content, list):
             content = "\n".join(str(b.get("text", "")) for b in content if isinstance(b, dict) and b.get("type") == "text")
         store.add_message(cid, ConversationMessage(message_id=message["id"], role="assistant",
-            content=content, tool_calls=message.get("tool_calls", [])))
+            content=strip_dashboard_marker(content), tool_calls=message.get("tool_calls", [])))
         known.add(message["id"])

@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState, type FC } from "react"
 
 import { WorkflowControlRenderer } from "./workflow-control"
 import { agentApi } from "@/lib/api/agent"
+import { parseWorkflowData } from "@/lib/api/schemas"
 import { useAuthStore } from "@/lib/stores/auth"
 import { useWorkflowUiStore } from "@/lib/stores/workflow"
 import { cn } from "@/lib/utils"
@@ -75,8 +76,26 @@ function statusBadgeVariant(status: string) {
   return "secondary" as const
 }
 
+/**
+ * 校验入口：形状不对时给出明确提示，而不是把坏数据塞进状态。
+ */
 export const WorkflowDataRenderer: FC<{ data: WorkflowData; onRefresh?: () => void }> = ({ data, onRefresh }) => {
-  const [workflow, setWorkflow] = useState<WorkflowData>(data as WorkflowData)
+  const parsed = useMemo(() => parseWorkflowData(data), [data])
+  if (!parsed) {
+    return (
+      <div
+        role="alert"
+        className="my-4 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+      >
+        工作流数据格式异常，无法展示。
+      </div>
+    )
+  }
+  return <WorkflowCard data={parsed} onRefresh={onRefresh} />
+}
+
+const WorkflowCard: FC<{ data: WorkflowData; onRefresh?: () => void }> = ({ data, onRefresh }) => {
+  const [workflow, setWorkflow] = useState<WorkflowData>(data)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [summary, setSummary] = useState("")
@@ -84,7 +103,7 @@ export const WorkflowDataRenderer: FC<{ data: WorkflowData; onRefresh?: () => vo
   const setStatus = useWorkflowUiStore((state) => state.setStatus)
   const remove = useWorkflowUiStore((state) => state.remove)
 
-  useEffect(() => setWorkflow(data as WorkflowData), [data])
+  useEffect(() => setWorkflow(data), [data])
 
   useEffect(() => {
     setStatus(workflow.run_id, workflow.status)
@@ -98,7 +117,8 @@ export const WorkflowDataRenderer: FC<{ data: WorkflowData; onRefresh?: () => vo
     const refresh = async () => {
       try {
         const response = await agentApi.getWorkflow(workflow.run_id)
-        if (!cancelled && response.code === 0) setWorkflow(response.data)
+        const next = response.code === 0 ? parseWorkflowData(response.data) : null
+        if (!cancelled && next) setWorkflow(next)
       } catch {
         // A transient refresh failure must not erase the persisted snapshot.
       }
@@ -124,7 +144,8 @@ export const WorkflowDataRenderer: FC<{ data: WorkflowData; onRefresh?: () => vo
       const response = workflow.status === "uncertain"
         ? await agentApi.resolveWorkflow(workflow.run_id, action, summary)
         : await agentApi.cancelWorkflow(workflow.run_id)
-      if (response.code === 0) { setWorkflow(response.data); onRefresh?.() }
+      const next = response.code === 0 ? parseWorkflowData(response.data) : null
+      if (next) { setWorkflow(next); onRefresh?.() }
       else setError(response.message)
     } catch (error) {
       setError(error instanceof Error ? error.message : "操作失败，请重试")

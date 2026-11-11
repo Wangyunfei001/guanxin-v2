@@ -49,17 +49,17 @@ async def test_timeout_does_not_wait_for_slow_cancellation(monkeypatch):
         await asyncio.wait_for(stopped.wait(), timeout=1)
 
 
-def test_native_event_log_replays_stable_ids(test_client, admin_headers):
+async def test_native_event_log_replays_stable_ids(test_client, admin_headers):
     from tests.test_langchain import new_thread
     from app.services import agent_run_store as runs
     cid = new_thread(test_client, admin_headers)
-    run, _ = runs.admit_run(cid, "replay-test")
+    run, _ = await runs.admit_run(cid, "replay-test")
     for text in ["first", "second"]:
-        runs.append_event(run, runs.protocol_event("values", {"messages": [], "report": text}))
-    runs.finish_run(run, "completed")
-    first = runs.read_events(cid, 0)
-    assert first == runs.read_events(cid, 0)
-    assert runs.read_events(cid, first[0]["seq"]) == first[1:]
+        await runs.append_event(run, runs.protocol_event("values", {"messages": [], "report": text}))
+    await runs.finish_run(run, "completed")
+    first = await runs.read_events(cid, 0)
+    assert first == await runs.read_events(cid, 0)
+    assert await runs.read_events(cid, first[0]["seq"]) == first[1:]
 
 
 def test_links_from_model_text_are_not_verified_citations():

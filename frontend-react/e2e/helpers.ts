@@ -25,3 +25,28 @@ export async function tokenFor(
 export function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` }
 }
+
+/**
+ * 等待编辑器稳定。
+ *
+ * 切换或新建会话会重建线程组件（AgentThread 以会话 id 为 key）。重建完成
+ * 之前输入会落到已被卸载的旧节点上，文字会凭空消失——真实用户也会遇到
+ * 「新建会话后立刻打字，什么都没打进去」。
+ */
+export async function waitForComposerStable(page: Page) {
+  await expect
+    .poll(
+      async () => {
+        const before = await page
+          .locator('[data-slot="agent-composer"]')
+          .getAttribute("data-mount-id")
+        await page.waitForTimeout(150)
+        const after = await page
+          .locator('[data-slot="agent-composer"]')
+          .getAttribute("data-mount-id")
+        return before === after ? after : null
+      },
+      { timeout: 15_000 },
+    )
+    .not.toBeNull()
+}

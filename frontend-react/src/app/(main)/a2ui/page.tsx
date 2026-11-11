@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { A2UIRenderer } from "@/components/a2ui/A2UIRenderer"
+import { ErrorState } from "@/components/layout/error-state"
+import { describeError } from "@/lib/api/errors"
 import { a2uiApi } from "@/lib/api/a2ui"
 import type { A2UISchema } from "@/types"
 
@@ -105,13 +107,29 @@ export default function A2UIPreviewPage() {
   const [selectedType, setSelectedType] = React.useState("")
   const [currentSchema, setCurrentSchema] = React.useState<A2UISchema | null>(null)
   const [schemaJson, setSchemaJson] = React.useState("")
+  const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     const loadData = async () => {
-      const [catRes, tplRes] = await Promise.all([
-        a2uiApi.getCatalog(),
-        a2uiApi.getTemplates(),
-      ])
+      let catRes
+      let tplRes
+      try {
+        ;[catRes, tplRes] = await Promise.all([
+          a2uiApi.getCatalog(),
+          a2uiApi.getTemplates(),
+        ])
+      } catch (caught) {
+        setError(describeError(caught, "加载 A2UI 目录失败"))
+        return
+      }
+      if (catRes.code !== 0) {
+        setError(catRes.message || "加载 A2UI 目录失败")
+        return
+      }
+      if (tplRes.code !== 0) {
+        setError(tplRes.message || "加载 A2UI 模板失败")
+        return
+      }
       if (catRes.code === 0) {
         setCatalog(catRes.data)
         if (catRes.data.length > 0) {
@@ -149,13 +167,27 @@ export default function A2UIPreviewPage() {
     }
   }
 
-  const applyJson = () => {
+  const applyJson = async () => {
+    let parsed: unknown
     try {
-      const parsed = JSON.parse(schemaJson)
-      setCurrentSchema(parsed)
-      toast.success("已应用")
+      parsed = JSON.parse(schemaJson)
     } catch {
       toast.error("JSON 格式错误")
+      return
+    }
+    // The backend already validates the schema (POST /a2ui/preview). Applying
+    // it without that check means a malformed schema silently falls back to
+    // InfoCard while the user is told "已应用".
+    try {
+      const response = await a2uiApi.previewSchema(parsed as A2UISchema)
+      if (response.code !== 0) {
+        toast.error(response.message || "Schema 不合法")
+        return
+      }
+      setCurrentSchema(parsed as A2UISchema)
+      toast.success("已应用")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Schema 校验失败")
     }
   }
 
@@ -197,7 +229,13 @@ export default function A2UIPreviewPage() {
                     <span className="min-w-0 flex-1 truncate">{component.display_name || component.component_type}</span>
                   </Label>
                 ))}
-                {catalog.length === 0 && <p className="px-2 py-4 text-xs text-muted-foreground">正在读取目录</p>}
+                {error ? (
+                  <div className="p-2">
+                    <ErrorState message={error} />
+                  </div>
+                ) : catalog.length === 0 ? (
+                  <p className="px-2 py-4 text-xs text-muted-foreground">正在读取目录</p>
+                ) : null}
               </RadioGroup>
             </section>
 

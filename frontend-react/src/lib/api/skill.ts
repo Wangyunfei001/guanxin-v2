@@ -10,14 +10,14 @@ export const skillApi = {
    * List all available skills.
    */
   listSkills(): Promise<ApiResponse<SkillMetadata[]>> {
-    return client.get("/skills")
+    return client.get<SkillMetadata[]>("/skills")
   },
 
   /**
    * Get detail for a single skill.
    */
   getSkillDetail(skillName: string): Promise<ApiResponse<SkillMetadata>> {
-    return client.get(`/skills/${skillName}`)
+    return client.get<SkillMetadata>(`/skills/${skillName}`)
   },
 
   /**
@@ -27,6 +27,6 @@ export const skillApi = {
     skillName: string,
     params: Record<string, any>,
   ): Promise<ApiResponse<any>> {
-    return client.post("/skills/execute", { skill_name: skillName, params })
+    return client.post<any>("/skills/execute", { skill_name: skillName, params })
   },
 }

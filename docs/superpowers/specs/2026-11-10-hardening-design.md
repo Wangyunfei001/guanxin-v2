@@ -1,3 +1,7 @@
+
+> **规格状态**：本文是设计决策记录，**不是权威契约**。现行实现的权威契约在
+> [`docs/specs/`](../../specs/)（spec-graph）；改动行为时以那里为准。
+
 # 观心 v2 安全与工程收口设计
 
 日期：2026-11-10
@@ -92,10 +96,13 @@ def resolve_secret_key() -> str:
 2. 否则读 `data/.secret_key`（`<data_dir>/.secret_key`，权限 0600）
 3. 仍无 → `secrets.token_urlsafe(48)` 生成，写入该文件（原子写：`tmp` + `os.replace`）
 
-**启动校验**（`app/main.py` lifespan）：
+**内置默认值在任何环境都不会被真正用于签名**——它一律被当作「未配置」处理。development / test 只是不因此 fail-fast，实际签名密钥仍是随机生成的那一把。
 
-- `settings.app_env` ∈ {`development`, `test`} → 允许使用默认值，只打一条 WARNING
-- 否则若解析出的密钥 == 默认值 → **抛异常拒绝启动**，错误信息不含密钥本身
+**启动校验**（`app/main.py` lifespan 调用 `ensure_secret_key()`）：
+
+- `settings.app_env` ∈ {`development`, `test`} → 允许继续启动，只打一条 WARNING
+- 否则若显式配置为内置默认值 → **抛异常拒绝启动**，错误信息不含密钥本身
+- 否则若显式配置的密钥短于 32 字符 → **抛异常拒绝启动**
 
 `.env.example` 的 `SECRET_KEY=` 留空，注释说明：留空则自动生成并持久化到 `data/.secret_key`。
 
@@ -162,10 +169,12 @@ class MCPServerManager:
 
 **方案**：
 
-1. 预检 `Content-Length`（若存在且 > 限额 → 直接 413，不读 body）
-2. 分块读：`while chunk := await file.read(1 << 20)`，累计字节数超限 → 抛 `HTTPException(413)`
+1. 预检 `file.size`（multipart 解析器已知长度时 → 直接 413，不读 body）
+2. 分块读：`while chunk := await file.read(1 MiB)`，累计字节数超限 → 抛 `HTTPException(413)`
 3. 超限时确保不落盘（解析发生在 `knowledge_service.upload_document` 内，校验在调用前完成）
 4. 错误信息不回显限额以内的路径或内部细节
+
+峰值内存因此被 `max_upload_size_mb` 硬性封顶，不再随请求体大小无限增长。
 
 `max_upload_size_mb` 从死配置变为真正被读取的配置。
 
@@ -179,17 +188,18 @@ class MCPServerManager:
 
 ### B5 · 工作流与 Agent 共用同一份工具目录构建器
 
-**问题**：Agent 链路（`app/agent/tool_catalog.py:201-212`）查 `mcp_tool_policies`，`enabled=False` 会跳过；工作流链路（`app/workflows/catalog.py:88-101`）**不查**，直接把所有 `get_tool_definitions()` 收进来。实测策略置 `enabled=False` 后，Agent 目录 `['kb_retrieval']`，工作流目录仍是 `['kb_retrieval', 'mcp__weather__get_weather']`。
+**问题**：Agent 链路（`app/agent/tool_catalog.py`）查 `mcp_tool_policies`，`enabled=False` 会跳过；工作流链路（`app/workflows/catalog.py`）**不查**，直接把所有 `get_tool_definitions()` 收进来。实测策略置 `enabled=False` 后，Agent 目录 `['kb_retrieval']`，工作流目录仍是 `['kb_retrieval', 'mcp__weather__get_weather']`。
 
-而 `app/api/langchain.py:184-189` 的放行判断用的正是**工作流**目录 —— 管理员亲手关掉的开关，对唯一需要人工审批的路径是空操作。
+而 `app/api/langchain.py` 的放行判断用的正是**工作流**目录 —— 管理员亲手关掉的开关，对唯一需要人工审批的路径是空操作。
 
-**方案**：把 `app/agent/tool_catalog.py::build_tool_catalog` 提为唯一实现，`app/workflows/catalog.py` 改为调用它，不再自建目录。
+**方案**：可见性与风险等级只有一份实现——`app.agent.tool_catalog.discover_tool_specs`。Agent 目录与工作流目录都从它派生：
 
 - 两边统一按 `mcp_tool_policies` 过滤 `enabled`
 - `effect` → `risk` 映射统一：`read` → `read`，`write` → `write`，其余 → `unknown`
 - `app/workflows/catalog.py::execute_tool` 在 `mcp__` 分支**再查一次** `enabled`（纵深防御）
+- `kb_retrieval` 是唯一例外：工作流侧额外暴露 `top_k`，与 Agent 侧的工具签名本就不同，各自构造
 
-**改动点**：`app/agent/tool_catalog.py`、`app/workflows/catalog.py`、`app/api/langchain.py`
+**改动点**：`app/agent/tool_catalog.py`、`app/workflows/catalog.py`
 
 **验证**：新增断言——策略 `enabled=False` 后，Agent 目录与工作流目录**都不含**该工具；工作流执行被拒。
 
@@ -234,7 +244,7 @@ risk = "write" if metadata.effect == "write" else "read"
 
 ### B7 · 移除正则意图旁路
 
-**问题**：`app/workflows/intent.py:40-45` 的匹配式无问句守卫，实测：
+**问题**：`app/workflows/intent.py` 的匹配式无问句守卫，实测：
 
 ```
 '如何删除用户'         -> 'single_delete'
@@ -246,14 +256,20 @@ risk = "write" if metadata.effect == "write" else "read"
 
 **方案**（决策 D3：移除旁路，只走工具）：
 
-- `thread_service._execute` 删除 `detect_workflow_intent` 分支，不再有「无模型直起工作流」的路径
-- 写操作统一经 `request_business_workflow` 工具发起 —— **该工具已存在**（`app/agent/deep_agent.py:156` 的 prompt 里已声明），入口无需新建
-- `app/workflows/intent.py` 降级为纯 UI 提示信号（如「检测到可能的删除操作」），**不再决定是否起工作流**；若确认无其他消费者则整体删除
-- `deep_agent.py` 的 prompt 明确：问句只回答不动手；祈使句走 `request_business_workflow`
+- `thread_service._execute` 删除 `detect_workflow_intent` 分支，不再有「无模型直起工作流」的路径；Agent 运行一律先过模型
+- 写操作统一经 `request_business_workflow` 工具发起 —— **该工具已存在**（`app/agent/deep_agent.py` 的 prompt 里已声明），入口无需新建
+- 问句守卫下沉到**意图分类层**（`app/workflows/intent.py::looks_like_question` + `planner.py::detect_workflow_intent`）：问句一律不产生变更类意图。这个判定保护所有入口——Agent 工具、工作流引擎与外部调用方
+- `deep_agent.py` 的 prompt 明确：问句只解释流程与所需参数，不发起变更审批
+
+**为什么把问句守卫放在分类层而不是只删旁路**：意图分类器仍被 `request_business_workflow` 用来选择计划形态（确定性单步 vs LLM 规划）。如果只删旁路而不加守卫，模型把「如何删除用户」当作 goal 传进工具时，确定性计划仍会指向 `skill__delete_user`。
 
 **行为变化（需在 demo 手册中体现）**：「如何删除用户」现在会得到解释性回答，而不是一张删除审批卡；「删除用户 user42」仍会经模型规划后进入审批。
 
-**改动点**：`app/agent/thread_service.py`、`app/workflows/intent.py`、`app/agent/deep_agent.py`、`app/agent/prompts.py`
+**e2e 与 CI 调整**：原工作流浏览器用例依赖旁路（CI 不配 LLM Key 也能跑通）。移除旁路后，用例改为在**确定性模型 fixture** 下运行——fixture 让模型真的发出 `request_business_workflow` 工具调用，因此覆盖的是完整的 agent → 工具 → 审批链路，而不是绕过模型。CI 相应把该用例并入 fixture 那一轮。
+
+**改动点**：`app/agent/thread_service.py`、`app/workflows/intent.py`、`app/workflows/planner.py`、`app/agent/deep_agent.py`、`backend/tests/native_app.py`、`frontend-react/e2e/workflow.spec.ts`、`.github/workflows/ci.yml`
+
+**实施中发现的另一个缺陷（同一处）**：初始化 effect 的会话选择可能**晚于**用户的显式操作到达，于是覆盖用户刚新建的会话——线程组件按会话 id 作 key，被换掉就重挂载，用户刚打的字凭空消失，发送按钮保持禁用。这不是测试脆弱，是真实的可用性缺陷。修法是让「用户想要的会话」成为唯一权威：只有用户动作能设置它，初始选择只在它为空时填充，响应只在仍是目标会话时才生效。
 
 **验证**：新增断言——问句不产生 `workflow_runs` 记录；祈使句经模型产生记录。
 
@@ -267,35 +283,34 @@ risk = "write" if metadata.effect == "write" else "read"
 
 v3 协议**每个模型 chunk 发一个 `content-delta`**（已核对安装的 `langchain-core/chat_models.py:717-723` 的 `achunks_to_events`，且 `ChatOpenAI(streaming=True)` 见 `app/agent/llm.py:33`）。实测 `append_event` ≈ 0.62 ms/次 → ~1600 events/s 上限，**全部发生在事件循环内**。1k token 的回答 ≈ 1k 次事务 ≈ 阻塞事件循环 0.6s，期间 SSE 轮询、`/state`、其他租户的 run 全部排队。
 
-**方案**（决策 D1：aiosqlite）：
+**方案**（决策 D1：异步写）：
 
-1. 新增 `app/core/async_sqlite.py`：
-   - **单个共享 `aiosqlite.Connection`**（模块级 lazy 单例，后台线程常驻）
-   - `async def transaction()`：用 `asyncio.Lock` 串行化写事务，保证 `BEGIN IMMEDIATE … COMMIT` 不被其他协程插入操作打断
-   - `async def close_async_database()`：lifespan 关闭时释放
-2. `app/services/agent_run_store.py` 全模块改 async（写与读），DDL 复用 `core/sqlite.initialize_database()` 的版本化脚本，不再自建表
-3. `app/agent/thread_service.py` 的调用点改 `await`
-4. **`append_event` 合并为单条 INSERT**：`seq` 用自增 rowid，`event_id` 与 payload 里的 `seq` 在**读取时**由 `read_events` 补齐（写路径不再需要 INSERT → UPDATE 两步）。写入量直接减半
+1. `app/services/agent_run_store.py` 的写入函数改为 async，底层用 `asyncio.to_thread` 把提交挪出事件循环，**复用 `app/core/sqlite.py` 的既有纪律**（WAL、`busy_timeout=5000`、`BEGIN IMMEDIATE`、外键、参数化 SQL）——那套纪律已经被 176 条测试覆盖
+2. **`append_event` 合并为单条 INSERT**：`seq` 与 `event_id` 在 `read_events` 时补齐，写入不再需要「先插空行、再 UPDATE 回填 payload」的两步写。每条事件的写入量减半
+3. `thread_service` / `api/langchain.py` / `api/research.py` / `main.py` 的调用点相应 `await`
 
-**为什么不逐操作开连接**：`aiosqlite` 每个 Connection 绑定一个后台线程，保持「每次操作新开连接」会变成每次操作 spawn 一个线程，比现状更慢。
+**为什么不用共享 aiosqlite 连接**（实施时对原方案的调整）：`aiosqlite` 的每个 Connection 绑定一个后台线程，沿用「每次操作新开连接」会变成每次操作 spawn 一个线程；而共享单个连接需要额外引入连接生命周期与跨事件循环的锁管理——而 SQLite 本身就是单写者，共享连接并不带来吞吐收益。`asyncio.to_thread` 拿到的是完全相同的性质（写不阻塞事件循环），却没有生命周期与跨循环隐患。
 
-**读路径保持同步 sqlite3**：读耗时 <1ms，且全量 async 化的爆炸半径过大（10+ store 文件、几十处调用点）。WAL 模式下多连接安全。
+**读路径保持同步 sqlite3**：读耗时 <1ms，且全量 async 化的爆炸半径过大。WAL 模式下多连接安全。
 
 **已知遗留**（本方案**不**解决，见「已接受的技术债」#1、#2）：
 
 - 每 token 仍是一次事务（fsync 次数未降）
 - `values` 事件仍内嵌全量消息列表 → 事件表体积 O(n²)
 
-**改动点**：`app/core/async_sqlite.py`（新）、`app/services/agent_run_store.py`、`app/agent/thread_service.py`、`app/api/langchain.py`（读事件改 await）、`app/main.py`（lifespan 关闭）
+**改动点**：`app/services/agent_run_store.py`、`app/agent/thread_service.py`、`app/api/langchain.py`、`app/api/research.py`、`app/main.py`
 
-**验证**：
+**验证**：`tests/test_agent_event_store.py`（5 条）
 
-- 新增断言：同一段输出的 `agent_events` **行数**与**总字节数**不高于改造前基线（记录基线值到测试常量）
-- 新增断言：`append_event` 不阻塞事件循环（并发跑一个心跳协程，断言其 tick 数在阈值内）
+- `loop.call_soon` 排的回调能在写入期间执行 → 确定性地证明事件循环没有被阻塞
+- 每条事件只占一行，落库 payload 不含 `seq` / `event_id`
+- 读取时补齐单调递增的 `seq` 与稳定的 `event_id`
+- 游标重放语义不变（增量读取与全量一致）
+- 终止事件仍按既有约定写入
 
 ### B9 · 发送失败时恢复草稿与附件
 
-**问题**：`frontend-react/src/components/agent/thread.tsx:78-92` 先 `setDraft("")` 再 `await stream.submit(...)`，catch 里 `setDraft(text)` 恢复。
+**问题**：`frontend-react/src/components/agent/thread.tsx` 先 `setDraft("")` 再 `await stream.submit(...)`，catch 里 `setDraft(text)` 恢复。
 
 但 `useStream().submit()` **不 reject** —— 已读安装的 `@langchain/langgraph-sdk@1.10.2` 源码 `dist/stream/submit-coordinator.js`：
 
@@ -311,20 +326,23 @@ v3 协议**每个模型 chunk 发一个 `content-delta`**（已核对安装的 `
 **方案**：
 
 ```js
+const failedRef = { current: false }
 await stream.submit(payload, {
   onError: (error) => {
+    failedRef.current = true
     setDraft(text)
     setAttachment(attachment)
-    setActionError(error instanceof Error ? error.message : "发送失败，请重试")
+    setActionError(...)
   },
 })
+if (!failedRef.current) { setDraft(""); setAttachment(null) }
 ```
 
-SDK 的 `onError` 在 dispatch-failure 与 terminal-failure 两条路径都会调用。草稿清空时机改为「命令被接受后」。
+SDK 的 `onError` 在 dispatch-failure 与 terminal-failure 两条路径都会调用。**`failedRef` 是必要的**：SDK 正常 resolve 后无条件清空草稿，会把 `onError` 刚恢复的内容又抹掉——只有「命令确实被接受」才清空。
 
 **改动点**：`frontend-react/src/components/agent/thread.tsx`
 
-**验证**：抽 `restoreDraftOnError` 纯函数 + vitest 用例；Playwright 断言失败后输入框内容仍在。
+**验证**：e2e 断言失败后输入框内容仍在；W5 补纯函数用例。
 
 ### B10 · 统一前端错误态 + 补 error boundary
 
@@ -342,13 +360,15 @@ App Router 树里没有任何 `error.tsx` / `global-error.tsx` / `not-found.tsx`
 
 **方案**：
 
-1. 每个 store 增加 `error: string | null`，成功时清空、失败时写入
-2. 统一空态判定规则：**`data.length === 0 && !error && !loading` 才显示空态**；有 error 则显示错误态 + 重试按钮
+1. 每个 store 增加 `error: string | null`，成功时清空、失败时写入（`src/lib/api/errors.ts` 提供统一的 `describeError`）
+2. 统一空态判定规则：**`data.length === 0 && !error && !loading` 才显示空态**；有 error 则显示错误态 + 重试按钮（新增 `components/layout/error-state.tsx`）
 3. 新增 `src/app/(main)/error.tsx`（client component，`reset()` 重试）与 `src/app/global-error.tsx`
-4. **401 策略统一**：抽 `handleUnauthorized()`（清 token + 重置 auth store + `router.replace('/login')`），`lib/api/client.ts` 的 axios 拦截器与 `thread.tsx` 的 `authorizedFetch` 共用
-5. `stores/auth.ts::fetchMe()` 目前是**死代码**（零调用点）→ 在 `AuthGuard` 挂载时调用一次，使过期 token 在用户发起 run 之前就被发现
+4. **401 策略统一**：新增 `handleUnauthorized()`（清 token + 跳登录页），`lib/api/client.ts` 的 axios 拦截器与 `thread.tsx` 的 `authorizedFetch` 共用；登录页自身返回 401 时不再跳转（避免刷新循环）
+5. `stores/auth.ts::fetchMe()` 此前是**死代码**（零调用点）→ 在 `AuthGuard` 挂载时调用一次，使过期 token 在用户发起 run 之前就被发现
 
-**改动点**：`frontend-react/src/lib/stores/*.ts`、`frontend-react/src/lib/api/client.ts`、`frontend-react/src/components/agent/thread.tsx`、`frontend-react/src/app/(main)/error.tsx`（新）、`frontend-react/src/app/global-error.tsx`（新）、各页面空态判定
+**顺带修掉会话切换竞态**（同属一类问题）：`assistant.tsx` 的 `selectConversation` 此前没有请求序号保护，两次快速点击会让**先发后到的旧响应覆盖新选择**（工作区显示的会话与用户最后点击的不一致，`localStorage` 也被写错）。现在用 `selectRequestRef` 序号保护，只有最后一次请求的结果会被应用。
+
+**改动点**：`frontend-react/src/lib/stores/*.ts`、`frontend-react/src/lib/api/{client,errors}.ts`、`frontend-react/src/components/agent/thread.tsx`、`frontend-react/src/components/layout/error-state.tsx`（新）、`frontend-react/src/app/(main)/error.tsx`（新）、`frontend-react/src/app/global-error.tsx`（新）、`frontend-react/src/components/auth/AuthGuard.tsx`、`frontend-react/src/app/assistant.tsx`、各管理页空态判定
 
 **验证**：Playwright 断言后端返回 500 时页面显示错误态而非空态。
 
@@ -397,10 +417,13 @@ type ApiClient = {
 **后端**（评审已 grep 确认零引用）：
 
 - `app/agent/prompts.py`：`USER_SYSTEM_PROMPT_BACKUP`、`INTENT_CLASSIFICATION_PROMPT`、`CONFIRM_MODE_PROMPT_SUFFIX`、`AI_ELEMENTS_TOOLS_GUIDE`、`build_system_prompt`
-- `app/agent/tools.py`：`get_tools`、`get_enabled_tools`、`skill_execute_tool_factory`、`_create_mcp_langchain_tool`
-- `app/services/research_store.py`：`create_run` / `upsert_source` / `append_event` 从未被 `app/` 调用 → 旧研究写路径整体删除
+- `app/agent/tools.py`：`get_tools`、`get_enabled_tools`、`skill_execute_tool_factory`、`_create_mcp_langchain_tool`（已在 W1 一并删除——它们依赖的 MCP 内部契约已变更，留着会变成坏路径）
 - `app/agent/tool_catalog.py::catalog_prompt`
 - `app/core/tenant.py::clear_tenant_context`
+- `app/skills/base.py::as_langchain_tool`
+- `app/core/exceptions.py`：**删除**（实施时对原方案的调整）。原方案是「启用而非删除」，但它构成第三套无人使用的异常机制，而 `app/core/responses.py` 的 `success()` / `error()` 与 FastAPI 的 `HTTPException` 已覆盖全部场景；HTTP 语义按决策保持现状，没有留给它的缺口。启用只会增加噪音。
+- `app/services/research_store.py`：**保留**。评审称它是死写路径，但实际不是——旧研究归档的「转入原生任务」功能靠它读取，测试也用它播种归档数据。
+- `app/agent/llm.py::_create_llm` → 改名为 `create_llm`（私有约定却被另外两个模块导入）；同时修掉它吞掉真实错误的问题：此前任何初始化异常都被转成「请先配置 OPENAI_API_KEY」，401、地址写错、模型名无效全被误诊成同一个问题且无日志。现在区分「未配置密钥」（返回 None）与「初始化失败」（记日志并抛 `LLMConfigurationError`）。
 
 **前端**：
 
@@ -427,9 +450,11 @@ type ApiClient = {
 | `tests/test_workflow_intent.py` | B7 问句不建工作流 |
 | `tests/test_agent_event_store.py` | B8 写入量与事件循环不阻塞 |
 
-**前端单测**：引入 `vitest`（仅纯函数，不引入 jsdom / testing-library），覆盖 `users-dashboard.tsx` 导出的 `parseUsersResult` / `isDashboardRestatement` / `stripDashboardMarker` / `dashboardNumbers`（表格用例，约 30 行）+ `submit` 失败恢复草稿的纯函数。接进 CI。
+**前端单测**：引入 `vitest`（仅纯函数，不引入 jsdom / testing-library）。看板的解析与判定逻辑从组件里抽到 `src/components/agent/users-dashboard-data.ts`（否则测试会拖进 React + recharts），覆盖 `parseUsersResult` / `dashboardNumbers` / `stripDashboardMarker` / `isDashboardRestatement`（17 条表格用例）；消息组装与长度校验抽到 `compose.ts`（5 条）。接进 CI。
 
-**Playwright 增补**：跨租户 MCP 隔离、上传超限、问句不建工作流。
+**Playwright 增补**：`e2e/authorization.spec.ts` 覆盖上传超限（e2e 后端把上限压到 1 MB）、MCP Server 跨租户隔离、env 值不外泄；`e2e/workflow.spec.ts` 增补「问句不建工作流」用例（确定性 fixture 下模型只回答不调工具，断言没有审批卡与工作流状态）。
+
+**CI**：新增 `npm run test:unit` 步骤；fixture 那一轮包含工作流用例。
 
 ---
 
@@ -457,6 +482,7 @@ type ApiClient = {
 3. **HTTP 状态码两套约定并存**：认证失败用 `200 + {"code": 4011}`，业务错误用真 `401/403/404/409`。前端 26 处依赖 `code === 0`；改真 401 会触发 axios 拦截器跳登录页。**保持现状，在 `docs/specs/modules/platform-core.md` 写明这是有意约定**，并同步启用 `app/core/exceptions.py` 的异常族（统一新增错误的表达方式），不再让下一个人误以为是疏漏。
 4. **MCP Server 配置不跨重启保留**（进程内存储）。B2 修的是跨租户越权，持久化是独立收益项。
 5. **API Key / JWT 无法吊销轮换**。演示级验收下接受。
+6. **编辑器草稿随会话切换丢失**。`AgentThread` 以会话 id 为 key，切换或新建会话会重建线程组件，正在输入的内容随之消失。浏览器用例已通过等待编辑器稳定来规避，但产品侧尚未把草稿状态移出会话级组件。
 
 ---
 

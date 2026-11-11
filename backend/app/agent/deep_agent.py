@@ -13,7 +13,7 @@ from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import tool
 
-from app.agent.llm import _create_llm
+from app.agent.llm import LLMConfigurationError, create_llm
 from app.agent.tool_catalog import build_tool_catalog, runtime_tools
 from app.core.checkpoints import get_checkpointer, initialize_checkpointer
 from app.core.tenant import set_tenant_context
@@ -85,7 +85,11 @@ async def checkpoint_values(conversation_id: str) -> dict:
 async def build_deep_agent(conversation_id: str, user: User, mode: str = "auto", *, model=None):
     set_tenant_context(user.tenant_id, user.user_id, user.role)
     config = get_agent_config_store().get_or_create_default(user.tenant_id)
-    model = model or _create_llm(config.model, config.temperature, config.max_tokens)
+    try:
+        model = model or create_llm(config.model, config.temperature, config.max_tokens)
+    except LLMConfigurationError as exc:
+        # 真实的初始化失败（地址 / 模型名 / 依赖）不能被误报成「没配 API Key」。
+        raise ValueError(str(exc)) from exc
     if model is None:
         raise ValueError("尚未配置可用模型，请先配置 OPENAI_API_KEY。")
     from app.research import ledger
@@ -154,6 +158,7 @@ read_source 返回 retryable=false 时不要重复读取同一 URL。
 搜索预算按会话累计，恢复不重置；预算错误时停止搜索，用已有证据说明缺口。
 文件系统是此会话专用的虚拟工作区；没有宿主 shell。不要虚构工具执行、来源或文件。
 当前执行器仅允许只读业务工具。若提供 request_business_workflow，用户要求修改业务数据时调用它建立审批，然后结束回复等待用户处理；否则说明当前没有对应权限。
+用户只是询问操作方法（例如「如何删除用户」「怎么创建一个用户」）时，只解释流程和所需参数，不要调用 request_business_workflow；只有用户明确要求执行变更时才调用。
 """
     # StateBackend is a checkpoint-backed virtual filesystem, never host disk.
     backend = StateBackend()

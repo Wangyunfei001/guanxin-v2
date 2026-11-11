@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { login } from "./helpers"
+import { login, waitForComposerStable } from "./helpers"
 
 test.skip(!process.env.GUANXIN_E2E_AGENT_FIXTURE, "Requires deterministic native model test entrypoint")
 
@@ -11,6 +11,7 @@ test("official SDK streams a Deep Agents report, restores and downloads its file
   await page.getByRole("button", { name: "新建会话", exact: true }).click()
   await expect.poll(() => page.evaluate(() => localStorage.getItem("guanxin_active_conversation"))).not.toBe(previousId)
   await expect(page.getByLabel("输入消息")).toBeEnabled()
+  await waitForComposerStable(page)
   await page.getByLabel("输入消息").fill("生成测试报告")
   await page.getByLabel("发送消息").click()
   await expect.poll(async () => {
@@ -40,12 +41,14 @@ test("closing the subscriber does not cancel, explicit stop does", async ({ page
   await page.getByRole("button", { name: "新建会话", exact: true }).click()
   await expect.poll(() => page.evaluate(() => localStorage.getItem("guanxin_active_conversation"))).not.toBe(previousId)
   await expect(page.getByLabel("输入消息")).toBeEnabled()
+  await waitForComposerStable(page)
   await page.getByLabel("输入消息").fill("流式测试")
   await page.getByLabel("发送消息").click()
   await expect(page.getByLabel("停止生成")).toBeVisible()
   await page.reload()
   await expect(page.locator('[data-message-role="ai"]').filter({ hasText: "测试回复" })).toBeVisible()
   await expect(page.getByLabel("输入消息")).toBeEnabled()
+  await waitForComposerStable(page)
   await page.getByLabel("输入消息").fill("取消测试")
   await page.getByLabel("发送消息").click()
   await expect(page.getByLabel("停止生成")).toBeVisible()
