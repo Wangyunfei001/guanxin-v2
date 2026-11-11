@@ -52,6 +52,8 @@ function Markdown({ text }: { text: string }) {
   return <div className="prose prose-sm max-w-none break-words dark:prose-invert [&_pre]:overflow-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3 [&_table]:block [&_table]:overflow-auto [&_a]:text-primary"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>
 }
 
+// 线程组件的挂载计数。切换会话会重建组件（AgentThread 以会话 id 为 key），
+// 重建完成前输入会落到已卸载的旧节点上；浏览器用例据此等待编辑器稳定。
 let threadMountCount = 0
 
 export function AgentThread(props: { conversationId: string; history: HistoricalMessage[] }) {
